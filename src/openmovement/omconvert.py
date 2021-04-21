@@ -46,11 +46,11 @@ class OmConvert:
         # Prefer file in current working directory
         search_path.insert(0, os.getcwd())
 
+        # Prefer binary in 'bin' folder in parent folder of source file
+        search_path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../bin'))
+        
         # Prefer binary co-located with source file
         search_path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
-        # Prefer binary in 'bin' folder in parent folder of source file
-        search_path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '../bin'))
 
         # Prefer a full path if specified
         parts = os.path.split(executable_name)

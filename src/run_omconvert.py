@@ -1,6 +1,6 @@
 # python -m pip install -e "git+https://github.com/digitalinteraction/openmovement-python.git#egg=openmovement"
 
-#import sys
+import sys
 #sys.path.append(".")
 
 import os
@@ -40,6 +40,15 @@ def run_omconvert(source_file):
 
 # Test version
 if __name__ == "__main__":
-    source_file = '_local/sample.cwa'
-    #source_file = '_local/mixed_wear.cwa'
-    run_omconvert(source_file)
+    default_file = None
+    #default_file = '../_local/sample.cwa'
+    #default_file = '../_local/mixed_wear.cwa'
+    
+    if len(sys.argv) <= 1:
+        if default_file is None:
+            print('No .CWA files specified.')
+        else:
+            run_omconvert(default_file)
+    else:
+        for arg in sys.argv[1:]:
+            run_omconvert(arg)

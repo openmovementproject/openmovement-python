@@ -2,7 +2,7 @@
 
 <!--
 ```
-python -m pip install -e "git+https://github.com/digitalinteraction/openmovement-python.git#egg=openmovement"
+python -m pip install "git+https://github.com/digitalinteraction/openmovement-python.git#egg=openmovement"
 ```
 -->
 

@@ -267,9 +267,9 @@ def load(filename):
     print(df)
 
 def main():
-    #file = '_local/sample.cwa'
-    #file = '_local/mixed_wear.cwa'
-    file = '_local/AX6-Sample-48-Hours.cwa'
+    #file = '../../_local/sample.cwa'
+    #file = '../../_local/mixed_wear.cwa'
+    file = '../../_local/AX6-Sample-48-Hours.cwa'
     load(file)
     pass
 
