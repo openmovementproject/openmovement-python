@@ -1,6 +1,7 @@
 import os
-import timeseries_csv
-from calc_svm import CalcSvm
+import sys
+import filename_info
+from openmovement import timeseries_csv, calc_svm
 
 def run_svm(source_file, test_load_everything=False):
     output_file = os.path.splitext(source_file)[0] + '.csvm.csv'
@@ -13,11 +14,11 @@ def run_svm(source_file, test_load_everything=False):
     else:
         # Use the CSV iterator with automatic time-offset/scaling
         tscsv = timeseries_csv.TimeseriesCsv(source_file, {
-            "time_zero": timeseries_csv.csv_time_from_filename(source_file), 
-            "global_scale": timeseries_csv.csv_scale_from_filename(source_file)
+            "time_zero": filename_info.csv_time_from_filename(source_file), 
+            "global_scale": filename_info.csv_scale_from_filename(source_file)
         })
     #print(tscsv.header)
-    svm_calc = CalcSvm(tscsv, {})
+    svm_calc = calc_svm.CalcSvm(tscsv, {})
     
     with open(output_file, 'w') as writer:
         writer.write("Time,Mean SVM (g)\n")
@@ -36,9 +37,17 @@ def run_svm(source_file, test_load_everything=False):
                 print('@' + str(int((time - feedback_start) / (60 * 60))) + 'h')
 
 
-# Test version
 if __name__ == "__main__":
-    #source_file = '../../_local/2021-04-01-123456123_XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX_ACC.csv'
-    source_file = '../../_local/sample.csv'
-    #source_file = '../../_local/mixed_wear.csv'
-    run_svm(source_file)
+    source_files = None
+    #source_files = ['../_local/2021-04-01-123456123_XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX_ACC.csv']
+    source_files = ['../_local/sample.csv']
+    #source_files = ['../_local/mixed_wear.csv']
+
+    if len(sys.argv) > 1:
+        source_files = sys.argv[1:]
+
+    if source_files is None or len(source_files) == 0:
+        print('No .CSV files specified.')
+    else:
+        for file in source_files:
+            run_svm(file)

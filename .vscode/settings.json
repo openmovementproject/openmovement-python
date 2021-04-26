@@ -42,8 +42,12 @@
         "nditer",
         "numpy",
         "omconvert",
+        "openmovement",
+        "readcsv",
         "resampling",
+        "splitext",
         "struct",
+        "timeseries",
         "tscsv",
         "yyyyyyxx",
         "zzzzyyyy"

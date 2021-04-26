@@ -38,17 +38,16 @@ def run_omconvert(source_file):
     #     print('RESULT: ' + key + ' == ' + str(value))
 
 
-# Test version
 if __name__ == "__main__":
-    default_file = None
-    #default_file = '../_local/sample.cwa'
-    #default_file = '../_local/mixed_wear.cwa'
-    
-    if len(sys.argv) <= 1:
-        if default_file is None:
-            print('No .CWA files specified.')
-        else:
-            run_omconvert(default_file)
+    source_files = None
+    #source_files = ['../_local/sample.cwa']
+    #source_files = ['../_local/mixed_wear.cwa']
+
+    if len(sys.argv) > 1:
+        source_files = sys.argv[1:]
+
+    if source_files is None or len(source_files) == 0:
+        print('No .CWA files specified.')
     else:
-        for arg in sys.argv[1:]:
-            run_omconvert(arg)
+        for file in source_files:
+            run_omconvert(file)
