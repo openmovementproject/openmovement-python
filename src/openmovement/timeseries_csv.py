@@ -121,7 +121,7 @@ class TimeseriesCsv:
 
     # Nothing to do at start of 'with'
     def __enter__(self):
-        pass
+        return self
         
     # Close handle at end of 'with'
     def __exit__(self, exc_type, exc_value, traceback):

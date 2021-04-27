@@ -512,24 +512,24 @@ class CwaData():
 
 
     def _find_segments(self):
-
-        if self.verbose: print('Finding segments...', flush=True)
-        self.all_segments = []
-
-        # Last sector in a segment where the session_id/config changes, or the sequence does not follow on, or the next sector is invalid.
-        ends = np.where((self.df.valid_sector.diff(periods=-1) != 0) | (self.df.session_id.diff(periods=-1) != 0) | (self.df.num_axes_bps.diff(periods=-1)  != 0) | ((-self.df.sequence_id).diff(periods=-1) != 1))[0]
-        
-        segment_start = 0
-        for end in ends:
-            segment = slice(segment_start, end + 1)
-            self.all_segments.append(segment)
-            segment_start = end + 1
-
         # TODO: Segments not yet used.  Possibly return as raw sample ranges: scale by self.data_format.data['samplesPerSector']
+        pass
 
-        if self.verbose: print('...segments located', flush=True)
-        if self.verbose: print(str(self.all_segments), flush=True)
-        #print(str(self.df.iloc[self.all_segments[0]]))
+        # if self.verbose: print('Finding segments...', flush=True)
+        # self.all_segments = []
+
+        # # Last sector in a segment where the session_id/config changes, or the sequence does not follow on, or the next sector is invalid.
+        # ends = np.where((self.df.valid_sector.diff(periods=-1) != 0) | (self.df.session_id.diff(periods=-1) != 0) | (self.df.num_axes_bps.diff(periods=-1)  != 0) | ((-self.df.sequence_id).diff(periods=-1) != 1))[0]
+        
+        # segment_start = 0
+        # for end in ends:
+        #     segment = slice(segment_start, end + 1)
+        #     self.all_segments.append(segment)
+        #     segment_start = end + 1
+
+        # if self.verbose: print('...segments located', flush=True)
+        # if self.verbose: print(str(self.all_segments), flush=True)
+        # #print(str(self.df.iloc[self.all_segments[0]]))
 
 
     def _interpret_samples(self):
@@ -620,12 +620,7 @@ class CwaData():
         self._parse_header()
         self._parse_data()
         self._find_segments()
-
         self._interpret_samples()
-
-        #if self.verbose: print(self.sample_values)
-        #if self.verbose: print(self.sample_values.shape)
-        #if self.verbose: print(self.samples)
 
         elapsed_time = time.time() - start_time
         if self.verbose: print('Done... (elapsed=' + str(elapsed_time) + ')', flush=True)
@@ -682,8 +677,8 @@ class CwaData():
 def main():
     #filename = '../../_local/sample.cwa'
     #filename = '../../_local/mixed_wear.cwa'
-    filename = '../../_local/AX6-Sample-48-Hours.cwa'
-    #filename = '../../_local/AX6-Static-8-Day.cwa'
+    #filename = '../../_local/AX6-Sample-48-Hours.cwa'
+    filename = '../../_local/AX6-Static-8-Day.cwa'
     #filename = '../../_local/longitudinal_data.cwa'
     with CwaData(filename, verbose=True) as cwa_data:
         sample_values = cwa_data.get_sample_values()
