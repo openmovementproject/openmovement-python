@@ -525,10 +525,11 @@ class CwaData():
             self.raw_samples[:,1] = ((((packed >> 10) & 0x3ff) ^ 0x0200) - 0x0200) << exponent
             self.raw_samples[:,2] = ((((packed >> 20) & 0x3ff) ^ 0x0200) - 0x0200) << exponent
             del packed
+            del exponent
         elif self.data_format['bytesPerAxis'] == 2:
             if self.verbose: print('Sample data: flattening...', flush=True)
             # Create 2D strided view of all raw sample data WORDs before flattening and reshaping
-            np_word = np.frombuffer(self.data_buffer[30:len(self.data_buffer)-2], dtype=np.dtype('<H'), count=-1)
+            np_word = np.frombuffer(self.data_buffer[30:len(self.data_buffer)-2], dtype=np.dtype('<h'), count=-1)
             word_view = np.lib.stride_tricks.as_strided(np_word, (len(self.data_buffer) // SECTOR_SIZE, 240), (2, SECTOR_SIZE), writeable=False)
             self.raw_samples = word_view.flatten()
             self.raw_samples = np.reshape(self.raw_samples, (-1, self.data_format['channels']))
@@ -541,11 +542,13 @@ class CwaData():
         self.mag = None
 
         if 'accelAxis' in self.data_format and self.data_format['accelAxis'] >= 0:
+            print('Accel unit: ' + str(self.data_format['accelUnit']))
             self.accel = np.ndarray(shape=(self.raw_samples.shape[0], 3))
             self.accel[:,:] = self.raw_samples[:, self.data_format['accelAxis']:self.data_format['accelAxis']+3]
             self.accel *= (1.0 / self.data_format['accelUnit'])
 
         if 'gyroAxis' in self.data_format and self.data_format['gyroAxis'] >= 0:
+            print('Gyro unit: ' + str(self.data_format['gyroUnit']))
             self.gyro = np.ndarray(shape=(self.raw_samples.shape[0], 3))
             self.gyro[:,:] = self.raw_samples[:, self.data_format['gyroAxis']:self.data_format['gyroAxis']+3]
             self.gyro *= (1.0 / self.data_format['gyroUnit'])
