@@ -253,24 +253,26 @@ def _parse_cwa_data(block, extractData=False):
     if len(block) >= 512:
         packetHeader = unpack('BB', block[0:2])                       # @ 0  +2   ASCII "AX", little-endian (0x5841)
         packetLength = unpack('<H', block[2:4])[0]                    # @ 2  +2   Packet length (508 bytes, with header (4) = 512 bytes total)
-        if packetHeader[0] == ord('A') and packetHeader[1] == ord('X') and packetLength == 508 and checksum(block[0:512]) == 0:
+        if packetHeader[0] == ord('A') and packetHeader[1] == ord('X') and packetLength == 508 and _checksum(block[0:512]) == 0:
             #checksum = unpack('<H', block[510:512])[0]               # @510 +2   Checksum of packet (16-bit word-wise sum of the whole packet should be zero)
 
             deviceFractional = unpack('<H', block[4:6])[0]            # @ 4  +2   Top bit set: 15-bit fraction of a second for the time stamp, the timestampOffset was already adjusted to minimize this assuming ideal sample rate; Top bit clear: 15-bit device identifier, 0 = unknown;
             data['sessionId'] = unpack('<I', block[6:10])[0]          # @ 6  +4   Unique session identifier, 0 = unknown
             data['sequenceId'] = unpack('<I', block[10:14])[0]        # @10  +4   Sequence counter (0-indexed), each packet has a new number (reset if restarted)
-            timestamp = read_timestamp(block[14:18])                  # @14  +4   Last reported RTC value, 0 = unknown
+            timestamp = _parse_timestamp(unpack('<I', block[14:18])[0]) # @14  +4   Last reported RTC value, 0 = unknown
             light = unpack('<H', block[18:20])[0]                     # @18  +2   Last recorded light sensor value in raw units, 0 = none #  log10LuxTimes10Power3 = ((value + 512.0) * 6000 / 1024); lux = pow(10.0, log10LuxTimes10Power3 / 1000.0);
-            data['light'] = light & 0x3f # least-significant 10 bits
+            data['light'] = light & 0x3ff  # least-significant 10 bits
             temperature = unpack('<H', block[20:22])[0]               # @20  +2   Last recorded temperature sensor value in raw units, 0 = none
             data['temperature'] = temperature * 75.0 / 256 - 50
             data['events'] = unpack('B', block[22:23])[0]             # @22  +1   Event flags since last packet, b0 = resume logging, b1 = reserved for single-tap event, b2 = reserved for double-tap event, b3 = reserved, b4 = reserved for diagnostic hardware buffer, b5 = reserved for diagnostic software buffer, b6 = reserved for diagnostic internal flag, b7 = reserved)
             battery = unpack('B', block[23:24])[0]                    # @23  +1   Last recorded battery level in raw units, 0 = unknown
             data['battery'] = (battery + 512.0) * 6000 / 1024 / 1000.0
             rateCode = unpack('B', block[24:25])[0]                   # @24  +1   Sample rate code, frequency (3200/(1<<(15-(rate & 0x0f)))) Hz, range (+/-g) (16 >> (rate >> 6)).
+            data['rateCode'] = rateCode
             numAxesBPS = unpack('B', block[25:26])[0]                 # @25  +1   0x32 (top nibble: number of axes = 3; bottom nibble: packing format - 2 = 3x 16-bit signed, 0 = 3x 10-bit signed + 2-bit exponent)
+            data['numAxesBPS'] = numAxesBPS
             timestampOffset = unpack('<h', block[26:28])[0]           # @26  +2   Relative sample index from the start of the buffer where the whole-second timestamp is valid
-            data['sampleCount'] = unpack('<H', block[28:30])[0]       # @28  +2   Number of accelerometer samples (80 or 120 if this sector is full)
+            data['sampleCount'] = unpack('<H', block[28:30])[0]       # @28  +2   Number of accelerometer samples (40/80/120, depending on format, if this sector is full)
             # rawSampleData[480] = block[30:510]                      # @30  +480 Raw sample data.  Each sample is either 3x 16-bit signed values (x, y, z) or one 32-bit packed value (The bits in bytes [3][2][1][0]: eezzzzzz zzzzyyyy yyyyyyxx xxxxxxxx, e = binary exponent, lsb on right)
             
             # range = 16 >> (rateCode >> 6)
@@ -392,9 +394,7 @@ def _parse_cwa_data(block, extractData=False):
                         magSamples[i][1] = (block[ofs + 2] | (block[ofs + 3] << 8)) / magUnit
                         magSamples[i][2] = (block[ofs + 4] | (block[ofs + 5] << 8)) / magUnit
                     data['samplesMag'] = magSamples
-            
-            # Light
-            light &= 0x3ff        # actual light value is least significant 10 bits
+
 
     return data
 
@@ -429,18 +429,20 @@ class CwaData():
         else:
             raise Exception('File header parsing error')
 
+        # Parse first sector to get initial data format
+        self.data_format = {}
+        if (len(self.full_buffer) - self.data_offset >= SECTOR_SIZE):
+            self.data_format = _parse_cwa_data(self.full_buffer[self.data_offset:self.data_offset + SECTOR_SIZE])
+            if 'channels' not in self.data_format or self.data_format['channels'] < 1 or 'samplesPerSector' not in self.data_format or self.data_format['samplesPerSector'] <= 0:
+                raise Exception('Unexpected data format')
+        else:
+            raise Exception('File has no data')
+
 
     def _parse_data(self):
-        if self.verbose: print('Verifying checksums...', flush=True)
-        self.data_buffer = memoryview(self.full_buffer[self.data_offset:])
-
-        # Find sectors with valid checksums: view data as 16-bit LE integers, reshaped per 512-byte sector, summed (wrapped to zero)
-        np_words = np.frombuffer(self.data_buffer, dtype=np.dtype('<H'), count=-1)
-        np_sector_words = np.reshape(np_words, (-1, SECTOR_SIZE // 2))
-        self.sectors_ok = np.sum(np_sector_words, dtype=np.int16, axis=1) == 0
-        #print(sectors_ok)
-
         if self.verbose: print('Interpreting data...', flush=True)
+        self.data_buffer = self.full_buffer[self.data_offset:]
+
         # Data type for numpy loading
         dt_cwa = np.dtype([
             ('packet_header', '<H'),                # @ 0  +2   ASCII "AX", little-endian (0x5841)
@@ -468,20 +470,37 @@ class CwaData():
         self.df = pd.DataFrame(self.np_data)
 
         if self.verbose: print('Parsing timestamps...', flush=True)
-        self.df['timestamp'] = self.df['timestamp_packed'].apply(lambda timestamp_packed: _fast_timestamp(timestamp_packed))
+        #self.df['timestamp'] = self.df['timestamp_packed'].apply(lambda timestamp_packed: _fast_timestamp(timestamp_packed))
+        _fast_timestamp_vectorized = np.vectorize(_fast_timestamp, otypes=[np.uint32])
+        self.df['timestamp'] = timestamps = _fast_timestamp_vectorized(self.df['timestamp_packed'])
 
         if self.verbose: print('Adding row index...', flush=True)
         self.df.index.name = 'row_index'
         #self.df['row_index'] = np.arange(0, self.df.shape[0])
 
+        # Calculate sectors checksums: view data as 16-bit LE integers, reshaped per 512-byte sector, summed (wrapped to zero)
+        if self.verbose: print('Calculating checksums...', flush=True)
+        np_words = np.frombuffer(self.data_buffer, dtype=np.dtype('<H'), count=-1)
+        np_sector_words = np.reshape(np_words, (-1, SECTOR_SIZE // 2))
+        self.df['checksum_sum'] = np.sum(np_sector_words, dtype=np.int16, axis=1)
+
+        # Valid sectors: zero checksum, correct header and packet-length, matching data format (numAxesBPS and rateCode)
+        if self.verbose: print('Determining valid sectors...', flush=True)
+        self.df['valid_sector'] = ((self.df.checksum_sum == 0) & (self.df.packet_header == 22593) & (self.df.packet_length == 508) & (self.df.num_axes_bps == self.data_format['numAxesBPS']) & (self.df.rate_code == self.data_format['rateCode']))
+        #print(self.df.valid_sector)
+
+        # TODO: Create 2D strided view of all raw sample data (as DWORD/WORD) before unpacking / reshaping / scaling
+
         if self.verbose: print('Interpreted data', flush=True)
 
 
     def _find_segments(self):
+
         if self.verbose: print('Finding segments...', flush=True)
         self.all_segments = []
 
-        ends = np.where((self.df['session_id'].diff(periods=-1) != 0) | (self.df['num_axes_bps'].diff(periods=-1)  != 0) | ((-self.df['sequence_id']).diff(periods=-1) != 1))[0]
+        # Last sector in a segment where the session_id/config changes, or the sequence does not follow on, or the next sector is invalid.
+        ends = np.where((self.df.valid_sector.diff(periods=-1) != 0) | (self.df.session_id.diff(periods=-1) != 0) | (self.df.num_axes_bps.diff(periods=-1)  != 0) | ((-self.df.sequence_id).diff(periods=-1) != 1))[0]
         
         segment_start = 0
         for end in ends:
@@ -489,12 +508,11 @@ class CwaData():
             self.all_segments.append(segment)
             segment_start = end + 1
 
-        if self.verbose: print('...done', flush=True)
-        #print(str(self.all_segments))
+        # TODO: Return segments as raw sample ranges?: scale by self.data_format.data['samplesPerSector']
+
+        if self.verbose: print('...segments located', flush=True)
+        if self.verbose: print(str(self.all_segments), flush=True)
         #print(str(self.df.iloc[self.all_segments[0]]))
-
-        # TODO: Narrow down to only matching segments (same format, session-id, timestamp increasing, gap no larger than a limit)
-
 
 
     def _parse_samples(self):
@@ -528,10 +546,11 @@ class CwaData():
 
         self._parse_samples()
 
-        elapsed_time = time.time() - start_time
-        if self.verbose: print('Done... (elapsed=' + str(elapsed_time) + ')', flush=True)
         if self.verbose: print(self.samples)
         if self.verbose: print(self.df)
+
+        elapsed_time = time.time() - start_time
+        if self.verbose: print('Done... (elapsed=' + str(elapsed_time) + ')', flush=True)
 
 
     # Nothing to do at start of 'with'
