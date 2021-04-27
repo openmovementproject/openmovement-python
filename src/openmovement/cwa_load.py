@@ -194,12 +194,12 @@ def _parse_cwa_header(block):
     """Parse a header block"""
     header = {}
     if len(block) >= 512:
-        packetHeader = unpack('BB', block[0:2])                            # @ 0  +2   ASCII "MD", little-endian (0x444D)
-        packetLength = unpack('<H', block[2:4])[0]                        # @ 2  +2   Packet length (1020 bytes, with header (4) = 1024 bytes total)
+        packetHeader = unpack('BB', block[0:2])                         # @ 0  +2   ASCII "MD", little-endian (0x444D)
+        packetLength = unpack('<H', block[2:4])[0]                      # @ 2  +2   Packet length (1020 bytes, with header (4) = 1024 bytes total)
         if packetHeader[0] == ord('M') and packetHeader[1] == ord('D') and packetLength >= 508:
             header['packetLength'] = packetLength
             # unpack() <=little-endian, bB=s/u 8-bit, hH=s/u 16-bit, iI=s/u 32-bit        
-            hardwareType = unpack('B', block[4:5])[0]                    # @ 4  +1   Hardware type (0x00/0xff/0x17 = AX3, 0x64 = AX6)
+            hardwareType = unpack('B', block[4:5])[0]                   # @ 4  +1   Hardware type (0x00/0xff/0x17 = AX3, 0x64 = AX6)
             header['hardwareType'] = hardwareType
             if hardwareType == 0x00 or hardwareType == 0xff:
                 hardwareType = 0x17
@@ -210,30 +210,30 @@ def _parse_cwa_header(block):
             else:
                 header['deviceType'] = hex(hardwareType)[2:] # BCD
             header['deviceId'] = unpack('<H', block[5:7])[0]            # @ 5  +2   Device identifier
-            header['sessionId'] = unpack('<I', block[7:11])[0]            # @ 7  +4   Unique session identifier
-            deviceIdUpper = unpack('<H', block[11:13])[0]                # @11  +2   Upper word of device id (if 0xffff is read, treat as 0x0000)
+            header['sessionId'] = unpack('<I', block[7:11])[0]          # @ 7  +4   Unique session identifier
+            deviceIdUpper = unpack('<H', block[11:13])[0]               # @11  +2   Upper word of device id (if 0xffff is read, treat as 0x0000)
             if deviceIdUpper != 0xffff:
                 header['deviceId'] |= deviceIdUpper << 16
-            header['loggingStart'] = _parse_timestamp(unpack('<I', block[13:17])[0])        # @13  +4   Start time for delayed logging
-            header['loggingEnd'] = _parse_timestamp(unpack('<I', block[17:21])[0])            # @17  +4   Stop time for delayed logging        
-            header['loggingCapacity'] = unpack('<I', block[21:25])[0]    # @21  +4   (Deprecated: preset maximum number of samples to collect, 0 = unlimited)
+            header['loggingStart'] = _parse_timestamp(unpack('<I', block[13:17])[0])    # @13  +4   Start time for delayed logging
+            header['loggingEnd'] = _parse_timestamp(unpack('<I', block[17:21])[0])      # @17  +4   Stop time for delayed logging        
+            header['loggingCapacity'] = unpack('<I', block[21:25])[0]   # @21  +4   (Deprecated: preset maximum number of samples to collect, 0 = unlimited)
             # header['reserved3'] = block[25:26]                        # @25  +1   (1 byte reserved)
-            header['flashLed'] = unpack('B', block[35:36])[0]            # @26  +1   Flash LED during recording
+            header['flashLed'] = unpack('B', block[35:36])[0]           # @26  +1   Flash LED during recording
             if header['flashLed'] == 0xff:
                 header['flashLed'] = 0
             # header['reserved4'] = block[27:35]                        # @25  +8   (8 bytes reserved)
-            sensorConfig = unpack('B', block[35:36])[0]                    # @35  +1   Fixed rate sensor configuration, 0x00 or 0xff means accel only, otherwise bottom nibble is gyro range (8000/2^n dps): 2=2000, 3=1000, 4=500, 5=250, 6=125, top nibble non-zero is magnetometer enabled.
+            sensorConfig = unpack('B', block[35:36])[0]                 # @35  +1   Fixed rate sensor configuration, 0x00 or 0xff means accel only, otherwise bottom nibble is gyro range (8000/2^n dps): 2=2000, 3=1000, 4=500, 5=250, 6=125, top nibble non-zero is magnetometer enabled.
             if sensorConfig != 0x00 and sensorConfig != 0xff:
                 header['gyroRange'] = 8000 / 2 ** (sensorConfig & 0x0f)
             else:
                 header['gyroRange'] = 0
-            rateCode = unpack('B', block[36:37])[0]                        # @36  +1   Sampling rate code, frequency (3200/(1<<(15-(rate & 0x0f)))) Hz, range (+/-g) (16 >> (rate >> 6)).
-            header['lastChange'] = _parse_timestamp(unpack('<I', block[37:41])[0])   # @37  +4   Last change metadata time
-            header['firmwareRevision'] = unpack('B', block[41:42])[0]    # @41  +1   Firmware revision number
+            rateCode = unpack('B', block[36:37])[0]                     # @36  +1   Sampling rate code, frequency (3200/(1<<(15-(rate & 0x0f)))) Hz, range (+/-g) (16 >> (rate >> 6)).
+            header['lastChange'] = _parse_timestamp(unpack('<I', block[37:41])[0])      # @37  +4   Last change metadata time
+            header['firmwareRevision'] = unpack('B', block[41:42])[0]   # @41  +1   Firmware revision number
             # header['timeZone'] = unpack('<H', block[42:44])[0]        # @42  +2   (Unused: originally reserved for a "Time Zone offset from UTC in minutes", 0xffff = -1 = unknown)
             # header['reserved5'] = block[44:64]                        # @44  +20  (20 bytes reserved)
-            header['metadata'] = _cwa_parse_metadata(block[64:512])        # @64  +448 "Annotation" meta-data (448 ASCII characters, ignore trailing 0x20/0x00/0xff bytes, url-encoded UTF-8 name-value pairs)
-            # header['reserved'] = block[512:1024]                        # @512 +512 Reserved for device-specific meta-data (512 bytes, ASCII characters, ignore trailing 0x20/0x00/0xff bytes, url-encoded UTF-8 name-value pairs, leading '&' if present?)
+            header['metadata'] = _cwa_parse_metadata(block[64:512])     # @64  +448 "Annotation" meta-data (448 ASCII characters, ignore trailing 0x20/0x00/0xff bytes, url-encoded UTF-8 name-value pairs)
+            # header['reserved'] = block[512:1024]                      # @512 +512 Reserved for device-specific meta-data (512 bytes, ASCII characters, ignore trailing 0x20/0x00/0xff bytes, url-encoded UTF-8 name-value pairs, leading '&' if present?)
             
             # Timestamps
             header['loggingStartTime'] = _timestamp_string(header['loggingStart'])
@@ -251,27 +251,27 @@ def _parse_cwa_data(block, extractData=False):
     """(Slow) parser for a single block."""
     data = {}
     if len(block) >= 512:
-        packetHeader = unpack('BB', block[0:2])                            # @ 0  +2   ASCII "AX", little-endian (0x5841)
-        packetLength = unpack('<H', block[2:4])[0]                        # @ 2  +2   Packet length (508 bytes, with header (4) = 512 bytes total)
+        packetHeader = unpack('BB', block[0:2])                       # @ 0  +2   ASCII "AX", little-endian (0x5841)
+        packetLength = unpack('<H', block[2:4])[0]                    # @ 2  +2   Packet length (508 bytes, with header (4) = 512 bytes total)
         if packetHeader[0] == ord('A') and packetHeader[1] == ord('X') and packetLength == 508 and checksum(block[0:512]) == 0:
-            #checksum = unpack('<H', block[510:512])[0]                    # @510 +2   Checksum of packet (16-bit word-wise sum of the whole packet should be zero)
+            #checksum = unpack('<H', block[510:512])[0]               # @510 +2   Checksum of packet (16-bit word-wise sum of the whole packet should be zero)
 
-            deviceFractional = unpack('<H', block[4:6])[0]                # @ 4  +2   Top bit set: 15-bit fraction of a second for the time stamp, the timestampOffset was already adjusted to minimize this assuming ideal sample rate; Top bit clear: 15-bit device identifier, 0 = unknown;
-            data['sessionId'] = unpack('<I', block[6:10])[0]            # @ 6  +4   Unique session identifier, 0 = unknown
-            data['sequenceId'] = unpack('<I', block[10:14])[0]            # @10  +4   Sequence counter (0-indexed), each packet has a new number (reset if restarted)
-            timestamp = read_timestamp(block[14:18])                    # @14  +4   Last reported RTC value, 0 = unknown
-            light = unpack('<H', block[18:20])[0]                        # @18  +2   Last recorded light sensor value in raw units, 0 = none #  log10LuxTimes10Power3 = ((value + 512.0) * 6000 / 1024); lux = pow(10.0, log10LuxTimes10Power3 / 1000.0);
+            deviceFractional = unpack('<H', block[4:6])[0]            # @ 4  +2   Top bit set: 15-bit fraction of a second for the time stamp, the timestampOffset was already adjusted to minimize this assuming ideal sample rate; Top bit clear: 15-bit device identifier, 0 = unknown;
+            data['sessionId'] = unpack('<I', block[6:10])[0]          # @ 6  +4   Unique session identifier, 0 = unknown
+            data['sequenceId'] = unpack('<I', block[10:14])[0]        # @10  +4   Sequence counter (0-indexed), each packet has a new number (reset if restarted)
+            timestamp = read_timestamp(block[14:18])                  # @14  +4   Last reported RTC value, 0 = unknown
+            light = unpack('<H', block[18:20])[0]                     # @18  +2   Last recorded light sensor value in raw units, 0 = none #  log10LuxTimes10Power3 = ((value + 512.0) * 6000 / 1024); lux = pow(10.0, log10LuxTimes10Power3 / 1000.0);
             data['light'] = light & 0x3f # least-significant 10 bits
-            temperature = unpack('<H', block[20:22])[0]                    # @20  +2   Last recorded temperature sensor value in raw units, 0 = none
+            temperature = unpack('<H', block[20:22])[0]               # @20  +2   Last recorded temperature sensor value in raw units, 0 = none
             data['temperature'] = temperature * 75.0 / 256 - 50
-            data['events'] = unpack('B', block[22:23])[0]                # @22  +1   Event flags since last packet, b0 = resume logging, b1 = reserved for single-tap event, b2 = reserved for double-tap event, b3 = reserved, b4 = reserved for diagnostic hardware buffer, b5 = reserved for diagnostic software buffer, b6 = reserved for diagnostic internal flag, b7 = reserved)
-            battery = unpack('B', block[23:24])[0]                        # @23  +1   Last recorded battery level in raw units, 0 = unknown
+            data['events'] = unpack('B', block[22:23])[0]             # @22  +1   Event flags since last packet, b0 = resume logging, b1 = reserved for single-tap event, b2 = reserved for double-tap event, b3 = reserved, b4 = reserved for diagnostic hardware buffer, b5 = reserved for diagnostic software buffer, b6 = reserved for diagnostic internal flag, b7 = reserved)
+            battery = unpack('B', block[23:24])[0]                    # @23  +1   Last recorded battery level in raw units, 0 = unknown
             data['battery'] = (battery + 512.0) * 6000 / 1024 / 1000.0
-            rateCode = unpack('B', block[24:25])[0]                        # @24  +1   Sample rate code, frequency (3200/(1<<(15-(rate & 0x0f)))) Hz, range (+/-g) (16 >> (rate >> 6)).
-            numAxesBPS = unpack('B', block[25:26])[0]                    # @25  +1   0x32 (top nibble: number of axes = 3; bottom nibble: packing format - 2 = 3x 16-bit signed, 0 = 3x 10-bit signed + 2-bit exponent)
-            timestampOffset = unpack('<h', block[26:28])[0]                # @26  +2   Relative sample index from the start of the buffer where the whole-second timestamp is valid
-            data['sampleCount'] = unpack('<H', block[28:30])[0]            # @28  +2   Number of accelerometer samples (80 or 120 if this sector is full)
-            # rawSampleData[480] = block[30:510]                        # @30  +480 Raw sample data.  Each sample is either 3x 16-bit signed values (x, y, z) or one 32-bit packed value (The bits in bytes [3][2][1][0]: eezzzzzz zzzzyyyy yyyyyyxx xxxxxxxx, e = binary exponent, lsb on right)
+            rateCode = unpack('B', block[24:25])[0]                   # @24  +1   Sample rate code, frequency (3200/(1<<(15-(rate & 0x0f)))) Hz, range (+/-g) (16 >> (rate >> 6)).
+            numAxesBPS = unpack('B', block[25:26])[0]                 # @25  +1   0x32 (top nibble: number of axes = 3; bottom nibble: packing format - 2 = 3x 16-bit signed, 0 = 3x 10-bit signed + 2-bit exponent)
+            timestampOffset = unpack('<h', block[26:28])[0]           # @26  +2   Relative sample index from the start of the buffer where the whole-second timestamp is valid
+            data['sampleCount'] = unpack('<H', block[28:30])[0]       # @28  +2   Number of accelerometer samples (80 or 120 if this sector is full)
+            # rawSampleData[480] = block[30:510]                      # @30  +480 Raw sample data.  Each sample is either 3x 16-bit signed values (x, y, z) or one 32-bit packed value (The bits in bytes [3][2][1][0]: eezzzzzz zzzzyyyy yyyyyyxx xxxxxxxx, e = binary exponent, lsb on right)
             
             # range = 16 >> (rateCode >> 6)
             frequency = 3200 / (1 << (15 - (rateCode & 0x0f)))
@@ -407,15 +407,21 @@ class CwaData():
     """
 
     def _read_data(self):
-        print('Loading CWA data...', flush=True)
-        with open(self.filename, 'rb') as fp:
-            self.buffer = fp.read()
-        print('...read ' + str(len(self.buffer) / 1024 / 1024) + 'MB', flush=True)
+        if self.verbose: print('Opening CWA file...', flush=True)
+        self.fh = open(self.filename, 'rb')
+        try:
+            import mmap
+            self.full_buffer = mmap.mmap(self.fh.fileno(), 0, access=mmap.ACCESS_READ)
+            if self.verbose: print('...mapped ' + str(len(self.full_buffer) / 1024 / 1024) + 'MB', flush=True)
+        except Exception as e:
+            print('WARNING: Problem using mmap (' + str(e) +') - falling back to reading whole file...', flush=True)
+            self.full_buffer = self.fh.read()
+            if self.verbose: print('...read ' + str(len(self.full_buffer) / 1024 / 1024) + 'MB', flush=True)
 
 
     def _parse_header(self):
-        print('Parsing header...', flush=True)
-        self.header = _parse_cwa_header(self.buffer)
+        if self.verbose: print('Parsing header...', flush=True)
+        self.header = _parse_cwa_header(self.full_buffer)
 
         self.data_offset = 0
         if 'packetLength' in self.header:
@@ -425,46 +431,54 @@ class CwaData():
 
 
     def _parse_data(self):
-        print('Interpreting data...', flush=True)
+        if self.verbose: print('Verifying checksums...', flush=True)
+        self.data_buffer = memoryview(self.full_buffer[self.data_offset:])
 
+        # Find sectors with valid checksums: view data as 16-bit LE integers, reshaped per 512-byte sector, summed (wrapped to zero)
+        np_words = np.frombuffer(self.data_buffer, dtype=np.dtype('<H'), count=-1)
+        np_sector_words = np.reshape(np_words, (-1, SECTOR_SIZE // 2))
+        self.sectors_ok = np.sum(np_sector_words, dtype=np.int16, axis=1) == 0
+        #print(sectors_ok)
+
+        if self.verbose: print('Interpreting data...', flush=True)
         # Data type for numpy loading
         dt_cwa = np.dtype([
-            ('packet_header', '<H'),        # @ 0  +2   ASCII "AX", little-endian (0x5841)
-            ('packet_length', '<H'),        # @ 2  +2   Packet length (508 bytes, with header (4) = 512 bytes total)
-            ('device_fractional', '<H'),    # @ 4  +2   Top bit set: 15-bit fraction of a second for the time stamp, the timestampOffset was already adjusted to minimize this assuming ideal sample rate; Top bit clear: 15-bit device identifier, 0 = unknown;
-            ('session_id', '<I'),           # @ 6  +4   Unique session identifier, 0 = unknown
-            ('sequence_id', '<I'),          # @10  +4   Sequence counter (0-indexed), each packet has a new number (reset if restarted)
-            ('timestamp_packed', '<I'),     # @14  +4   Last reported RTC value, 0 = unknown
-            ('light', '<H'),                # @18  +2   Last recorded light sensor value in raw units, 0 = none #  log10LuxTimes10Power3 = ((value + 512.0) * 6000 / 1024); lux = pow(10.0, log10LuxTimes10Power3 / 1000.0);
-            ('temperature', '<H'),          # @20  +2   Last recorded temperature sensor value in raw units, 0 = none
-            ('events', 'B'),                # @22  +1   Event flags since last packet, b0 = resume logging, b1 = reserved for single-tap event, b2 = reserved for double-tap event, b3 = reserved, b4 = reserved for diagnostic hardware buffer, b5 = reserved for diagnostic software buffer, b6 = reserved for diagnostic internal flag, b7 = reserved)
-            ('battery', 'B'),               # @23  +1   Last recorded battery level in raw units, 0 = unknown
-            ('rate_code', 'B'),             # @24  +1   Sample rate code, frequency (3200/(1<<(15-(rate & 0x0f)))) Hz, range (+/-g) (16 >> (rate >> 6)).
-            ('num_axes_bps', 'B'),          # @25  +1   0x32 (top nibble: number of axes = 3; bottom nibble: packing format - 2 = 3x 16-bit signed, 0 = 3x 10-bit signed + 2-bit exponent)
-            ('timestamp_offset', '<h'),     # @26  +2   Relative sample index from the start of the buffer where the whole-second timestamp is valid
-            ('sample_count', '<H'),         # @28  +2   Number of accelerometer samples (depending on packing, 40/80/120 if this sector is full)
-            ('raw_data_buffer', np.dtype('V480')), # @30  +480 Raw sample data.  Each sample is either 3x 16-bit signed values (x, y, z) or one 32-bit packed value (The bits in bytes [3][2][1][0]: eezzzzzz zzzzyyyy yyyyyyxx xxxxxxxx, e = binary exponent, lsb on right)
-            ('checksum', '<H'),             # @510 +2   Checksum of packet (16-bit word-wise sum of the whole packet should be zero)
+            ('packet_header', '<H'),                # @ 0  +2   ASCII "AX", little-endian (0x5841)
+            ('packet_length', '<H'),                # @ 2  +2   Packet length (508 bytes, with header (4) = 512 bytes total)
+            ('device_fractional', '<H'),            # @ 4  +2   Top bit set: 15-bit fraction of a second for the time stamp, the timestampOffset was already adjusted to minimize this assuming ideal sample rate; Top bit clear: 15-bit device identifier, 0 = unknown;
+            ('session_id', '<I'),                   # @ 6  +4   Unique session identifier, 0 = unknown
+            ('sequence_id', '<I'),                  # @10  +4   Sequence counter (0-indexed), each packet has a new number (reset if restarted)
+            ('timestamp_packed', '<I'),             # @14  +4   Last reported RTC value, 0 = unknown
+            ('light', '<H'),                        # @18  +2   Last recorded light sensor value in raw units, 0 = none #  log10LuxTimes10Power3 = ((value + 512.0) * 6000 / 1024); lux = pow(10.0, log10LuxTimes10Power3 / 1000.0);
+            ('temperature', '<H'),                  # @20  +2   Last recorded temperature sensor value in raw units, 0 = none
+            ('events', 'B'),                        # @22  +1   Event flags since last packet, b0 = resume logging, b1 = reserved for single-tap event, b2 = reserved for double-tap event, b3 = reserved, b4 = reserved for diagnostic hardware buffer, b5 = reserved for diagnostic software buffer, b6 = reserved for diagnostic internal flag, b7 = reserved)
+            ('battery', 'B'),                       # @23  +1   Last recorded battery level in raw units, 0 = unknown
+            ('rate_code', 'B'),                     # @24  +1   Sample rate code, frequency (3200/(1<<(15-(rate & 0x0f)))) Hz, range (+/-g) (16 >> (rate >> 6)).
+            ('num_axes_bps', 'B'),                  # @25  +1   0x32 (top nibble: number of axes = 3; bottom nibble: packing format - 2 = 3x 16-bit signed, 0 = 3x 10-bit signed + 2-bit exponent)
+            ('timestamp_offset', '<h'),             # @26  +2   Relative sample index from the start of the buffer where the whole-second timestamp is valid
+            ('sample_count', '<H'),                 # @28  +2   Number of accelerometer samples (depending on packing, 40/80/120 if this sector is full)
+            ('raw_data_buffer', np.dtype('V480')),  # @30  +480 Raw sample data.  Each sample is either 3x 16-bit signed values (x, y, z) or one 32-bit packed value (The bits in bytes [3][2][1][0]: eezzzzzz zzzzyyyy yyyyyyxx xxxxxxxx, e = binary exponent, lsb on right)
+            ('checksum', '<H'),                     # @510 +2   Checksum of packet (16-bit word-wise sum of the whole packet should be zero)
         ])
 
-        print('From buffer...', flush=True)
-        self.np_data = np.frombuffer(self.buffer, dtype=dt_cwa, count=-1, offset=self.data_offset)
+        if self.verbose: print('From buffer...', flush=True)
+        self.np_data = np.frombuffer(self.data_buffer, dtype=dt_cwa, count=-1)
 
-        print('Creating data frame...', flush=True)
+        if self.verbose: print('Creating data frame...', flush=True)
         self.df = pd.DataFrame(self.np_data)
 
-        print('Parsing timestamps...', flush=True)
+        if self.verbose: print('Parsing timestamps...', flush=True)
         self.df['timestamp'] = self.df['timestamp_packed'].apply(lambda timestamp_packed: _fast_timestamp(timestamp_packed))
 
-        print('Adding row index...', flush=True)
+        if self.verbose: print('Adding row index...', flush=True)
         self.df.index.name = 'row_index'
         #self.df['row_index'] = np.arange(0, self.df.shape[0])
 
-        print('Interpreted data', flush=True)
+        if self.verbose: print('Interpreted data', flush=True)
 
 
     def _find_segments(self):
-        print('Finding segments...', flush=True)
+        if self.verbose: print('Finding segments...', flush=True)
         self.all_segments = []
 
         ends = np.where((self.df['session_id'].diff(periods=-1) != 0) | (self.df['num_axes_bps'].diff(periods=-1)  != 0) | ((-self.df['sequence_id']).diff(periods=-1) != 1))[0]
@@ -475,7 +489,7 @@ class CwaData():
             self.all_segments.append(segment)
             segment_start = end + 1
 
-        print('...done', flush=True)
+        if self.verbose: print('...done', flush=True)
         #print(str(self.all_segments))
         #print(str(self.df.iloc[self.all_segments[0]]))
 
@@ -485,23 +499,27 @@ class CwaData():
 
     def _parse_samples(self):
         # TODO: Operate on one segment
-        print('Parsing samples (16-bit values)...', flush=True)
+        if self.verbose: print('Parsing samples (16-bit values)...', flush=True)
         dt_int16 = np.dtype(np.int16).newbyteorder('<')
         self.df['raw_data'] = self.df['raw_data_buffer'].apply(lambda raw_data_buffer: np.frombuffer(raw_data_buffer, dtype=dt_int16))
 
-        print('Concat samples...', flush=True)
+        if self.verbose: print('Concat samples...', flush=True)
         self.samples = np.concatenate(self.df['raw_data'])
 
-        print('Reshape samples (6-axis)...', flush=True)
+        if self.verbose: print('Reshape samples (6-axis)...', flush=True)
         self.samples = np.reshape(self.samples, (-1, 6))
 
 
 
 
-    def __init__(self, filename):
+    def __init__(self, filename, verbose=False):
         start_time = time.time()
 
+        self.verbose = verbose
+
         self.filename = filename
+        self.fh = None
+        self.full_buffer = None
 
         self._read_data()
         self._parse_header()
@@ -511,26 +529,59 @@ class CwaData():
         self._parse_samples()
 
         elapsed_time = time.time() - start_time
-        print('Done... (elapsed=' + str(elapsed_time) + ')', flush=True)
+        if self.verbose: print('Done... (elapsed=' + str(elapsed_time) + ')', flush=True)
+        if self.verbose: print(self.samples)
+        if self.verbose: print(self.df)
 
-        print(self.samples)
+
+    # Nothing to do at start of 'with'
+    def __enter__(self):
+        pass
         
-        print(self.df)
+    # Close handle at end of 'with'
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.close()
+    
+    # Close handle when destructed
+    def __del__(self):
+        self.close()
 
+    # # Iterating can use self
+    # def __iter__(self):
+    #     return self
 
+    # # Process next data line
+    # def __next__(self):
+    #     try:
+    #         row = next(self.reader)
+    #     except StopIteration:
+    #         self.close()
+    #         raise   # Cascade StopIteration to caller
+    #     return row
 
-
-
+    def close(self):
+        """Close the underlying file.  Automatically closed in with() block or when GC'd."""
+        if self.full_buffer is not None:
+            # Close if a mmap()
+            if hasattr(self.full_buffer, 'close'):
+                self.full_buffer.close()
+            # Delete buffer (if large allocation not using mmap)
+            del self.full_buffer
+            self.full_buffer = None
+        if self.fh is not None:
+            self.fh.close()
+            self.fh = None
 
 
 def main():
-    #file = '../../_local/sample.cwa'
-    #file = '../../_local/mixed_wear.cwa'
-    #file = '../../_local/AX6-Sample-48-Hours.cwa'
-    file = '../../_local/AX6-Static-8-Day.cwa'
-    #file = '../../_local/longitudinal_data.cwa'
-    cwaData = CwaData(file)
-    pass
+    #filename = '../../_local/sample.cwa'
+    #filename = '../../_local/mixed_wear.cwa'
+    #filename = '../../_local/AX6-Sample-48-Hours.cwa'
+    filename = '../../_local/AX6-Static-8-Day.cwa'
+    #filename = '../../_local/longitudinal_data.cwa'
+    with CwaData(filename, verbose=True) as cwaData:
+        print('Done')
+    print('End')
 
 if __name__ == "__main__":
     main()
