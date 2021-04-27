@@ -80,11 +80,14 @@ def _checksum(data):
         sum = (sum + value) & 0xffff
     return sum
 
-
-def _short_sign_extend(value):
-    """Sign-extend a 16-bit value."""
-    return ((value + 0x8000) & 0xffff) - 0x8000
-
+def _dword_unpack(value):
+    """Unpack a DWORD-packed triaxial value"""
+    # eezzzzzz zzzzyyyy yyyyyyxx xxxxxxxx
+    exponent = value >> 30
+    x = ((((value      ) & 0x3ff) ^ 0x0200) - 0x0200) << exponent
+    y = ((((value >> 10) & 0x3ff) ^ 0x0200) - 0x0200) << exponent
+    z = ((((value >> 20) & 0x3ff) ^ 0x0200) - 0x0200) << exponent
+    return (x, y, z)
 
 def _timestamp_string(timestamp):
     """Formatted version of timestamp"""
@@ -363,12 +366,12 @@ def _parse_cwa_data(block, extractData=False):
                     if bytesPerAxis == 0 and channels == 3:
                         for i in range(data['sampleCount']):
                             ofs = 30 + i * 4
-                            #val =  block[i] | (block[i + 1] << 8) | (block[i + 2] << 8) | (block[i + 3] << 24)
-                            val = unpack('<I', block[ofs:ofs + 4])[0]
-                            ex = (6 - ((val >> 30) & 3))
-                            accelSamples[i][0] = (_short_sign_extend((0xffc0 & (val <<  6))) >> ex) / accelUnit
-                            accelSamples[i][1] = (_short_sign_extend((0xffc0 & (val >>  4))) >> ex) / accelUnit
-                            accelSamples[i][2] = (_short_sign_extend((0xffc0 & (val >> 14))) >> ex) / accelUnit
+                            #value =  block[i] | (block[i + 1] << 8) | (block[i + 2] << 8) | (block[i + 3] << 24)
+                            value = unpack('<I', block[ofs:ofs + 4])[0]
+                            axes = _dword_unpack(value)
+                            accelSamples[i][0] = axes[0] / accelUnit
+                            accelSamples[i][1] = axes[1] / accelUnit
+                            accelSamples[i][2] = axes[2] / accelUnit
                     elif bytesPerSample == 2:
                         for i in range(data['sampleCount']):
                             ofs = 30 + (i * 2 * channels) + 2 * accelAxis
@@ -472,7 +475,7 @@ class CwaData():
         if self.verbose: print('Parsing timestamps...', flush=True)
         #self.df['timestamp'] = self.df['timestamp_packed'].apply(lambda timestamp_packed: _fast_timestamp(timestamp_packed))
         _fast_timestamp_vectorized = np.vectorize(_fast_timestamp, otypes=[np.uint32])
-        self.df['timestamp'] = timestamps = _fast_timestamp_vectorized(self.df['timestamp_packed'])
+        self.df['timestamp'] = _fast_timestamp_vectorized(self.df['timestamp_packed'])
 
         if self.verbose: print('Adding row index...', flush=True)
         self.df.index.name = 'row_index'
@@ -484,13 +487,36 @@ class CwaData():
         np_sector_words = np.reshape(np_words, (-1, SECTOR_SIZE // 2))
         self.df['checksum_sum'] = np.sum(np_sector_words, dtype=np.int16, axis=1)
 
-        # Valid sectors: zero checksum, correct header and packet-length, matching data format (numAxesBPS and rateCode)
+        # Valid sectors: zero checksum, correct header and packet-length, matching initial data format (numAxesBPS and rateCode)
         if self.verbose: print('Determining valid sectors...', flush=True)
         self.df['valid_sector'] = ((self.df.checksum_sum == 0) & (self.df.packet_header == 22593) & (self.df.packet_length == 508) & (self.df.num_axes_bps == self.data_format['numAxesBPS']) & (self.df.rate_code == self.data_format['rateCode']))
         #print(self.df.valid_sector)
 
-        # TODO: Create 2D strided view of all raw sample data (as DWORD/WORD) before unpacking / reshaping / scaling
+        # Align data for contiguous reading
+        if self.data_format['channels'] == 3 and self.data_format['bytesPerSample'] == 4:
+            if self.verbose: print('Sample data: unpacking...', flush=True)
+            # Create 2D strided view of all raw sample data packed DWORDs, flatten to a single array (copies), unpack
+            np_dword = np.frombuffer(self.data_buffer[30:len(self.data_buffer)-2], dtype=np.dtype('<I'), count=-1)
+            dword_view = np.lib.stride_tricks.as_strided(np_dword, (len(self.data_buffer) // SECTOR_SIZE, 120), (4, SECTOR_SIZE), writeable=False)
+            packed = dword_view.flatten()
+            exponent = packed >> 30
+            self.raw_samples = np.ndarray(shape=(dword_view.size, 3), dtype=np.int16)
+            self.raw_samples[:,0] = ((((packed      ) & 0x3ff) ^ 0x0200) - 0x0200) << exponent
+            self.raw_samples[:,1] = ((((packed >> 10) & 0x3ff) ^ 0x0200) - 0x0200) << exponent
+            self.raw_samples[:,2] = ((((packed >> 20) & 0x3ff) ^ 0x0200) - 0x0200) << exponent
+            del packed
+        elif self.data_format['bytesPerAxis'] == 2:
+            if self.verbose: print('Sample data: flattening...', flush=True)
+            # Create 2D strided view of all raw sample data WORDs before flattening and reshaping
+            np_word = np.frombuffer(self.data_buffer[30:len(self.data_buffer)-2], dtype=np.dtype('<H'), count=-1)
+            word_view = np.lib.stride_tricks.as_strided(np_word, (len(self.data_buffer) // SECTOR_SIZE, 240), (2, SECTOR_SIZE), writeable=False)
+            self.raw_samples = word_view.flatten()
+            self.raw_samples = np.reshape(self.raw_samples, (-1, self.data_format['channels']))
+        else:
+            raise Exception('Unhandled data format')
 
+        if self.verbose: print(self.raw_samples)
+        exit(0)
         if self.verbose: print('Interpreted data', flush=True)
 
 
@@ -517,16 +543,16 @@ class CwaData():
 
     def _parse_samples(self):
         # TODO: Operate on one segment
-        if self.verbose: print('Parsing samples (16-bit values)...', flush=True)
-        dt_int16 = np.dtype(np.int16).newbyteorder('<')
-        self.df['raw_data'] = self.df['raw_data_buffer'].apply(lambda raw_data_buffer: np.frombuffer(raw_data_buffer, dtype=dt_int16))
+        # if self.verbose: print('Parsing samples (16-bit values)...', flush=True)
+        # dt_int16 = np.dtype(np.int16).newbyteorder('<')
+        # self.df['raw_data'] = self.df['raw_data_buffer'].apply(lambda raw_data_buffer: np.frombuffer(raw_data_buffer, dtype=dt_int16))
 
-        if self.verbose: print('Concat samples...', flush=True)
-        self.samples = np.concatenate(self.df['raw_data'])
+        # if self.verbose: print('Concat samples...', flush=True)
+        # self.samples = np.concatenate(self.df['raw_data'])
 
-        if self.verbose: print('Reshape samples (6-axis)...', flush=True)
-        self.samples = np.reshape(self.samples, (-1, 6))
-
+        # if self.verbose: print('Reshape samples (6-axis)...', flush=True)
+        # self.samples = np.reshape(self.samples, (-1, 6))
+        pass
 
 
 
@@ -596,8 +622,8 @@ def main():
     #filename = '../../_local/sample.cwa'
     #filename = '../../_local/mixed_wear.cwa'
     #filename = '../../_local/AX6-Sample-48-Hours.cwa'
-    filename = '../../_local/AX6-Static-8-Day.cwa'
-    #filename = '../../_local/longitudinal_data.cwa'
+    #filename = '../../_local/AX6-Static-8-Day.cwa'
+    filename = '../../_local/longitudinal_data.cwa'
     with CwaData(filename, verbose=True) as cwaData:
         print('Done')
     print('End')
