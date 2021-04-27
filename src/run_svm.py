@@ -1,7 +1,7 @@
 import os
 import sys
 import filename_info
-from openmovement import timeseries_csv, calc_svm
+from openmovement import timeseries_csv, calc_svm_iter
 
 def run_svm(source_file, test_load_everything=False):
     output_file = os.path.splitext(source_file)[0] + '.csvm.csv'
@@ -18,7 +18,7 @@ def run_svm(source_file, test_load_everything=False):
             "global_scale": filename_info.csv_scale_from_filename(source_file)
         })
     #print(tscsv.header)
-    svm_calc = calc_svm.CalcSvm(tscsv, {})
+    svm_calc = calc_svm_iter.CalcSvmIter(tscsv, {})
     
     with open(output_file, 'w') as writer:
         writer.write("Time,Mean SVM (g)\n")

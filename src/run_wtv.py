@@ -1,7 +1,7 @@
 import os
 import sys
 import filename_info
-from openmovement import timeseries_csv, calc_wtv
+from openmovement import timeseries_csv, calc_wtv_iter
 
 def run_wtv(source_file, test_load_everything=False):
     output_file = os.path.splitext(source_file)[0] + '.cwtv.csv'
@@ -18,7 +18,7 @@ def run_wtv(source_file, test_load_everything=False):
             "global_scale": filename_info.csv_scale_from_filename(source_file)
         })
 
-    wtv_calc = calc_wtv.CalcWtv(tscsv, {})
+    wtv_calc = calc_wtv_iter.CalcWtvIter(tscsv, {})
     
     with open(output_file, 'w') as writer:
         writer.write("Time,Wear time (30 mins)\n")
