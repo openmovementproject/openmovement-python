@@ -4,12 +4,6 @@ Dan Jackson, Open Movement, 2017-2021
 Derived from cwa_metadata.py CWA Metadata Reader by Dan Jackson, Open Movement.
 """
 
-# TODO:
-# * Seek/read to quickly determine 'segments' where the sequence ID increases by one, the session_id/rate/range/format stays the same, all but the last are full of data, the timestamp/sample index monotonically increases
-# * Read a sample-indexed span from a segment
-# * Interpret adjacent segments as "sessions": a segment plus additional identical-config segments with a delay less than a maximum interval (e.g. 7 days).
-# * Read a sample span within a session.
-
 import sys
 import time
 from datetime import datetime
@@ -260,10 +254,11 @@ def _parse_cwa_data(block, extractData=False):
             #checksum = unpack('<H', block[510:512])[0]               # @510 +2   Checksum of packet (16-bit word-wise sum of the whole packet should be zero)
 
             deviceFractional = unpack('<H', block[4:6])[0]            # @ 4  +2   Top bit set: 15-bit fraction of a second for the time stamp, the timestampOffset was already adjusted to minimize this assuming ideal sample rate; Top bit clear: 15-bit device identifier, 0 = unknown;
+            data['deviceFractional'] = deviceFractional
             data['sessionId'] = unpack('<I', block[6:10])[0]          # @ 6  +4   Unique session identifier, 0 = unknown
             data['sequenceId'] = unpack('<I', block[10:14])[0]        # @10  +4   Sequence counter (0-indexed), each packet has a new number (reset if restarted)
             timestamp = _parse_timestamp(unpack('<I', block[14:18])[0]) # @14  +4   Last reported RTC value, 0 = unknown
-            light = unpack('<H', block[18:20])[0]                     # @18  +2   Last recorded light sensor value in raw units, 0 = none #  log10LuxTimes10Power3 = ((value + 512.0) * 6000 / 1024); lux = pow(10.0, log10LuxTimes10Power3 / 1000.0);
+            light = unpack('<H', block[18:20])[0]                     # @18  +2   Lower 10 bits are the last recorded light sensor value in raw units, 0 = none #  log10LuxTimes10Power3 = ((value + 512.0) * 6000 / 1024); lux = pow(10.0, log10LuxTimes10Power3 / 1000.0);
             data['light'] = light & 0x3ff  # least-significant 10 bits
             temperature = unpack('<H', block[20:22])[0]               # @20  +2   Last recorded temperature sensor value in raw units, 0 = none
             data['temperature'] = temperature * 75.0 / 256 - 50
@@ -328,7 +323,7 @@ def _parse_cwa_data(block, extractData=False):
             gyroRange = 2000    # 32768 = 2000dps
             magUnit = 16        # 1uT = 16
             # light is least significant 10 bits, accel scale 3-MSB, gyro scale next 3 bits: AAAGGGLLLLLLLLLL
-            accelScale = 1 << (8 + ((light >> 13) & 0x07))
+            accelUnit = 1 << (8 + ((light >> 13) & 0x07))
             if ((light >> 10) & 0x07) != 0:
                 gyroRange = 8000 // (1 << ((light >> 10) & 0x07))
             
@@ -454,7 +449,7 @@ class CwaData():
             ('session_id', '<I'),                   # @ 6  +4   Unique session identifier, 0 = unknown
             ('sequence_id', '<I'),                  # @10  +4   Sequence counter (0-indexed), each packet has a new number (reset if restarted)
             ('timestamp_packed', '<I'),             # @14  +4   Last reported RTC value, 0 = unknown
-            ('light', '<H'),                        # @18  +2   Last recorded light sensor value in raw units, 0 = none #  log10LuxTimes10Power3 = ((value + 512.0) * 6000 / 1024); lux = pow(10.0, log10LuxTimes10Power3 / 1000.0);
+            ('scale_light', '<H'),                  # @18  +2   Scaling info, and lower 10-bits are the last recorded light sensor value in raw units, 0 = none #  log10LuxTimes10Power3 = ((value + 512.0) * 6000 / 1024); lux = pow(10.0, log10LuxTimes10Power3 / 1000.0);
             ('temperature', '<H'),                  # @20  +2   Last recorded temperature sensor value in raw units, 0 = none
             ('events', 'B'),                        # @22  +1   Event flags since last packet, b0 = resume logging, b1 = reserved for single-tap event, b2 = reserved for double-tap event, b3 = reserved, b4 = reserved for diagnostic hardware buffer, b5 = reserved for diagnostic software buffer, b6 = reserved for diagnostic internal flag, b7 = reserved)
             ('battery', 'B'),                       # @23  +1   Last recorded battery level in raw units, 0 = unknown
@@ -492,32 +487,6 @@ class CwaData():
         self.df['valid_sector'] = ((self.df.checksum_sum == 0) & (self.df.packet_header == 22593) & (self.df.packet_length == 508) & (self.df.num_axes_bps == self.data_format['numAxesBPS']) & (self.df.rate_code == self.data_format['rateCode']))
         #print(self.df.valid_sector)
 
-        # Align data for contiguous reading
-        if self.data_format['channels'] == 3 and self.data_format['bytesPerSample'] == 4:
-            if self.verbose: print('Sample data: unpacking...', flush=True)
-            # Create 2D strided view of all raw sample data packed DWORDs, flatten to a single array (copies), unpack
-            np_dword = np.frombuffer(self.data_buffer[30:len(self.data_buffer)-2], dtype=np.dtype('<I'), count=-1)
-            dword_view = np.lib.stride_tricks.as_strided(np_dword, (len(self.data_buffer) // SECTOR_SIZE, 120), (4, SECTOR_SIZE), writeable=False)
-            packed = dword_view.flatten()
-            exponent = packed >> 30
-            self.raw_samples = np.ndarray(shape=(dword_view.size, 3), dtype=np.int16)
-            self.raw_samples[:,0] = ((((packed      ) & 0x3ff) ^ 0x0200) - 0x0200) << exponent
-            self.raw_samples[:,1] = ((((packed >> 10) & 0x3ff) ^ 0x0200) - 0x0200) << exponent
-            self.raw_samples[:,2] = ((((packed >> 20) & 0x3ff) ^ 0x0200) - 0x0200) << exponent
-            del packed
-        elif self.data_format['bytesPerAxis'] == 2:
-            if self.verbose: print('Sample data: flattening...', flush=True)
-            # Create 2D strided view of all raw sample data WORDs before flattening and reshaping
-            np_word = np.frombuffer(self.data_buffer[30:len(self.data_buffer)-2], dtype=np.dtype('<H'), count=-1)
-            word_view = np.lib.stride_tricks.as_strided(np_word, (len(self.data_buffer) // SECTOR_SIZE, 240), (2, SECTOR_SIZE), writeable=False)
-            self.raw_samples = word_view.flatten()
-            self.raw_samples = np.reshape(self.raw_samples, (-1, self.data_format['channels']))
-        else:
-            raise Exception('Unhandled data format')
-
-        if self.verbose: print(self.raw_samples)
-        exit(0)
-        if self.verbose: print('Interpreted data', flush=True)
 
 
     def _find_segments(self):
@@ -541,18 +510,54 @@ class CwaData():
         #print(str(self.df.iloc[self.all_segments[0]]))
 
 
-    def _parse_samples(self):
-        # TODO: Operate on one segment
-        # if self.verbose: print('Parsing samples (16-bit values)...', flush=True)
-        # dt_int16 = np.dtype(np.int16).newbyteorder('<')
-        # self.df['raw_data'] = self.df['raw_data_buffer'].apply(lambda raw_data_buffer: np.frombuffer(raw_data_buffer, dtype=dt_int16))
+    def _interpret_samples(self):
 
-        # if self.verbose: print('Concat samples...', flush=True)
-        # self.samples = np.concatenate(self.df['raw_data'])
+        # Align data for contiguous reading
+        if self.data_format['channels'] == 3 and self.data_format['bytesPerSample'] == 4:
+            if self.verbose: print('Sample data: unpacking...', flush=True)
+            # Create 2D strided view of all raw sample data packed DWORDs, flatten to a single array (copies), unpack
+            np_dword = np.frombuffer(self.data_buffer[30:len(self.data_buffer)-2], dtype=np.dtype('<I'), count=-1)
+            dword_view = np.lib.stride_tricks.as_strided(np_dword, (len(self.data_buffer) // SECTOR_SIZE, 120), (4, SECTOR_SIZE), writeable=False)
+            packed = dword_view.flatten()
+            exponent = packed >> 30
+            self.raw_samples = np.ndarray(shape=(dword_view.size, 3), dtype=np.int16)
+            self.raw_samples[:,0] = ((((packed      ) & 0x3ff) ^ 0x0200) - 0x0200) << exponent
+            self.raw_samples[:,1] = ((((packed >> 10) & 0x3ff) ^ 0x0200) - 0x0200) << exponent
+            self.raw_samples[:,2] = ((((packed >> 20) & 0x3ff) ^ 0x0200) - 0x0200) << exponent
+            del packed
+        elif self.data_format['bytesPerAxis'] == 2:
+            if self.verbose: print('Sample data: flattening...', flush=True)
+            # Create 2D strided view of all raw sample data WORDs before flattening and reshaping
+            np_word = np.frombuffer(self.data_buffer[30:len(self.data_buffer)-2], dtype=np.dtype('<H'), count=-1)
+            word_view = np.lib.stride_tricks.as_strided(np_word, (len(self.data_buffer) // SECTOR_SIZE, 240), (2, SECTOR_SIZE), writeable=False)
+            self.raw_samples = word_view.flatten()
+            self.raw_samples = np.reshape(self.raw_samples, (-1, self.data_format['channels']))
+        else:
+            raise Exception('Unhandled data format')
 
-        # if self.verbose: print('Reshape samples (6-axis)...', flush=True)
-        # self.samples = np.reshape(self.samples, (-1, 6))
-        pass
+        if self.verbose: print('Sample data: scaling...', flush=True)
+        self.accel = None
+        self.gyro = None
+        self.mag = None
+
+        if 'accelAxis' in self.data_format and self.data_format['accelAxis'] >= 0:
+            self.accel = np.ndarray(shape=(self.raw_samples.shape[0], 3))
+            self.accel[:,:] = self.raw_samples[:, self.data_format['accelAxis']:self.data_format['accelAxis']+3]
+            self.accel *= (1.0 / self.data_format['accelUnit'])
+
+        if 'gyroAxis' in self.data_format and self.data_format['gyroAxis'] >= 0:
+            self.gyro = np.ndarray(shape=(self.raw_samples.shape[0], 3))
+            self.gyro[:,:] = self.raw_samples[:, self.data_format['gyroAxis']:self.data_format['gyroAxis']+3]
+            self.gyro *= (1.0 / self.data_format['gyroUnit'])
+
+        if 'magAxis' in self.data_format and self.data_format['magAxis'] >= 0:
+            self.mag = np.ndarray(shape=(self.raw_samples.shape[0], 3))
+            self.mag[:,:] = self.raw_samples[:, self.data_format['magAxis']:self.data_format['magAxis']+3]
+            self.mag *= (1.0 / self.data_format['magUnit'])
+
+        del self.raw_samples
+
+        if self.verbose: print('Interpreted data', flush=True)
 
 
 
@@ -570,9 +575,10 @@ class CwaData():
         self._parse_data()
         self._find_segments()
 
-        self._parse_samples()
+        self._interpret_samples()
 
-        if self.verbose: print(self.samples)
+        if self.verbose: print(self.accel)
+        if self.verbose: print(self.gyro)
         if self.verbose: print(self.df)
 
         elapsed_time = time.time() - start_time
@@ -621,9 +627,9 @@ class CwaData():
 def main():
     #filename = '../../_local/sample.cwa'
     #filename = '../../_local/mixed_wear.cwa'
-    #filename = '../../_local/AX6-Sample-48-Hours.cwa'
+    filename = '../../_local/AX6-Sample-48-Hours.cwa'
     #filename = '../../_local/AX6-Static-8-Day.cwa'
-    filename = '../../_local/longitudinal_data.cwa'
+    #filename = '../../_local/longitudinal_data.cwa'
     with CwaData(filename, verbose=True) as cwaData:
         print('Done')
     print('End')
