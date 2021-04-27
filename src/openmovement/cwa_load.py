@@ -23,13 +23,13 @@ def _fast_timestamp(value):
         _fast_timestamp.SECONDS_BEFORE_YEAR_MONTH = [0] * 1024        # YYYYYYMM MM (Y=years since 2000, M=month-of-year 1-indexed)
         SECONDS_PER_DAY = 24 * 60 * 60
         DAYS_IN_MONTH = [ 0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31, 0, 0, 0 ]    # invalid month 0, months 1-12 (non-leap-year), invalid months 13-15
-        seconds_before = 946684800        # Seconds from UNIX epoch (1970) until device epoch (2000)
-        for year in range(0, 64):        # 2000-2063
-            for month in range(0, 16):    # invalid month 0, months 1-12, invalid months 13-15
+        seconds_before = 946684800      # Seconds from UNIX epoch (1970) until device epoch (2000)
+        for year in range(0, 64):       # 2000-2063
+            for month in range(0, 16):  # invalid month 0, months 1-12, invalid months 13-15
                 index = (year << 4) + month
                 _fast_timestamp.SECONDS_BEFORE_YEAR_MONTH[index] = seconds_before - SECONDS_PER_DAY    # minus one day as day-of-month is 1-based
                 days = DAYS_IN_MONTH[month]
-                if year % 4 == 0 and month == 2:    # This is correct for this year range
+                if year % 4 == 0 and month == 2:    # Correct for this year range (2000 was a leap year, despite being a multiple of 100, as it is a multiple of 400)
                     days += 1
                 seconds_before += days * SECONDS_PER_DAY
 
@@ -467,14 +467,36 @@ class CwaData():
         if self.verbose: print('Creating data frame...', flush=True)
         self.df = pd.DataFrame(self.np_data)
 
+        #self.df.index.name = 'row_index'
+
+        #if self.verbose: print('Adding sector index...', flush=True)
+        #self.df['sector_index'] = np.arange(0, self.df.shape[0])
+
+        if self.verbose: print('Adding sample index...', flush=True)
+        self.df['sample_index'] = np.arange(0, self.df.shape[0]) * self.data_format['sampleCount']
+
         if self.verbose: print('Parsing timestamps...', flush=True)
         #self.df['timestamp'] = self.df['timestamp_packed'].apply(lambda timestamp_packed: _fast_timestamp(timestamp_packed))
         _fast_timestamp_vectorized = np.vectorize(_fast_timestamp, otypes=[np.uint32])
         self.df['timestamp'] = _fast_timestamp_vectorized(self.df['timestamp_packed'])
 
-        if self.verbose: print('Adding row index...', flush=True)
-        self.df.index.name = 'row_index'
-        #self.df['row_index'] = np.arange(0, self.df.shape[0])
+        # Check we have fractional timestamps
+        if self.data_format['deviceFractional'] & 0x8000:
+            if self.verbose: print('Adjusting timestamps for fractional...', flush=True)
+            # Need to undo backwards-compatible shim by calculating how many whole samples the fractional part of timestamp accounts for.
+            int_frequency = int(self.data_format['frequency'])                          # Configured rate
+            time_fractional = (self.df['device_fractional'] & 0x7fff) * 2               # Use bottom 15-bits as a 16-bit fractional time
+            self.df['timestamp_offset'] += (time_fractional * int_frequency) // 65536   # Undo the backwards-compatible shift (as we have a true fractional)
+
+            # Add fractional time to timestamp
+            self.df['timestamp'] += time_fractional / 65536
+        else:
+            # Old file, no fractional - adjust timestamp to float anyway for consistency
+            self.df['timestamp'] += 0.0
+
+        # Adjusting timestamp offset
+        if self.verbose: print('Timestamp index...', flush=True)
+        self.df['timestamp_index'] = self.df['sample_index'] + self.df['timestamp_offset']
 
         # Calculate sectors checksums: view data as 16-bit LE integers, reshaped per 512-byte sector, summed (wrapped to zero)
         if self.verbose: print('Calculating checksums...', flush=True)
@@ -503,7 +525,7 @@ class CwaData():
             self.all_segments.append(segment)
             segment_start = end + 1
 
-        # TODO: Return segments as raw sample ranges?: scale by self.data_format.data['samplesPerSector']
+        # TODO: Segments not yet used.  Possibly return as raw sample ranges: scale by self.data_format.data['samplesPerSector']
 
         if self.verbose: print('...segments located', flush=True)
         if self.verbose: print(str(self.all_segments), flush=True)
@@ -536,29 +558,50 @@ class CwaData():
         else:
             raise Exception('Unhandled data format')
 
-        if self.verbose: print('Sample data: scaling...', flush=True)
-        self.accel = None
-        self.gyro = None
-        self.mag = None
+        # Which axes
+        axis_count = 1  # time
+        has_accel = 'accelAxis' in self.data_format and self.data_format['accelAxis'] >= 0
+        has_gyro = 'gyroAxis' in self.data_format and self.data_format['gyroAxis'] >= 0
+        has_mag = 'magAxis' in self.data_format and self.data_format['magAxis'] >= 0
+        if has_accel: axis_count += 3
+        if has_gyro: axis_count += 3
+        if has_mag: axis_count += 3
+        labels = []
 
-        if 'accelAxis' in self.data_format and self.data_format['accelAxis'] >= 0:
-            print('Accel unit: ' + str(self.data_format['accelUnit']))
-            self.accel = np.ndarray(shape=(self.raw_samples.shape[0], 3))
-            self.accel[:,:] = self.raw_samples[:, self.data_format['accelAxis']:self.data_format['accelAxis']+3]
-            self.accel *= (1.0 / self.data_format['accelUnit'])
+        if self.verbose: print('Timestamp interpolate...', flush=True)
+        self.sample_values = np.ndarray(shape=(self.raw_samples.shape[0], axis_count))
+        current_axis = 0
 
-        if 'gyroAxis' in self.data_format and self.data_format['gyroAxis'] >= 0:
-            print('Gyro unit: ' + str(self.data_format['gyroUnit']))
-            self.gyro = np.ndarray(shape=(self.raw_samples.shape[0], 3))
-            self.gyro[:,:] = self.raw_samples[:, self.data_format['gyroAxis']:self.data_format['gyroAxis']+3]
-            self.gyro *= (1.0 / self.data_format['gyroUnit'])
+        # Interpolate timestamps (NOTE: np.interp() does not extrapolate to the few samples before/after first/last timestamp)
+        self.sample_values[:,current_axis] = np.interp(np.arange(0, self.df.shape[0] * self.data_format['sampleCount']), self.df['timestamp_index'], self.df['timestamp'])
+        labels = labels + ['time']
+        current_axis += 1
 
-        if 'magAxis' in self.data_format and self.data_format['magAxis'] >= 0:
-            self.mag = np.ndarray(shape=(self.raw_samples.shape[0], 3))
-            self.mag[:,:] = self.raw_samples[:, self.data_format['magAxis']:self.data_format['magAxis']+3]
-            self.mag *= (1.0 / self.data_format['magUnit'])
+        if has_accel:
+            if self.verbose: print('Sample data: scaling accel... 1/' + str(self.data_format['accelUnit']), flush=True)
+            self.sample_values[:,current_axis:current_axis+3] = self.raw_samples[:, self.data_format['accelAxis']:self.data_format['accelAxis']+3]
+            self.sample_values[:,current_axis:current_axis+3] *= (1.0 / self.data_format['accelUnit'])
+            labels = labels + ['accel_x', 'accel_y', 'accel_z']
+            current_axis += 3
+
+        if has_gyro:
+            if self.verbose: print('Sample data: scaling gyro... 1/' + str(self.data_format['gyroUnit']), flush=True)
+            self.sample_values[:,current_axis:current_axis+3] = self.raw_samples[:, self.data_format['gyroAxis']:self.data_format['gyroAxis']+3]
+            self.sample_values[:,current_axis:current_axis+3] *= (1.0 / self.data_format['gyroUnit'])
+            labels = labels + ['gyro_x', 'gyro_y', 'gyro_z']
+            current_axis += 3
+
+        if has_mag:
+            if self.verbose: print('Sample data: scaling mag... 1/' + str(self.data_format['magUnit']), flush=True)
+            self.sample_values[:,current_axis:current_axis+3] = self.raw_samples[:, self.data_format['magAxis']:self.data_format['magAxis']+3]
+            self.sample_values[:,current_axis:current_axis+3] *= (1.0 / self.data_format['magUnit'])
+            labels = labels + ['mag_x', 'mag_y', 'mag_z']
+            current_axis += 3
 
         del self.raw_samples
+
+        if self.verbose: print('Creating DataFrame', flush=True)
+        self.samples = pd.DataFrame(self.sample_values, columns=labels)
 
         if self.verbose: print('Interpreted data', flush=True)
 
@@ -580,9 +623,9 @@ class CwaData():
 
         self._interpret_samples()
 
-        if self.verbose: print(self.accel)
-        if self.verbose: print(self.gyro)
-        if self.verbose: print(self.df)
+        #if self.verbose: print(self.sample_values)
+        #if self.verbose: print(self.sample_values.shape)
+        #if self.verbose: print(self.samples)
 
         elapsed_time = time.time() - start_time
         if self.verbose: print('Done... (elapsed=' + str(elapsed_time) + ')', flush=True)
@@ -590,7 +633,7 @@ class CwaData():
 
     # Nothing to do at start of 'with'
     def __enter__(self):
-        pass
+        return self
         
     # Close handle at end of 'with'
     def __exit__(self, exc_type, exc_value, traceback):
@@ -627,13 +670,26 @@ class CwaData():
             self.fh = None
 
 
+    def get_sample_values(self):
+        """Return an ndarray of (time, accel_x, accel_y, accel_z) or (time, accel_x, accel_y, accel_z, gyro_x, gyro_y, gyro_z)"""
+        return self.sample_values
+
+    def get_samples(self):
+        """Return an DataFrame for (time, accel_x, accel_y, accel_z) or (time, accel_x, accel_y, accel_z, gyro_x, gyro_y, gyro_z)"""
+        return self.samples
+
+
 def main():
     #filename = '../../_local/sample.cwa'
     #filename = '../../_local/mixed_wear.cwa'
     filename = '../../_local/AX6-Sample-48-Hours.cwa'
     #filename = '../../_local/AX6-Static-8-Day.cwa'
     #filename = '../../_local/longitudinal_data.cwa'
-    with CwaData(filename, verbose=True) as cwaData:
+    with CwaData(filename, verbose=True) as cwa_data:
+        sample_values = cwa_data.get_sample_values()
+        print(sample_values)
+        samples = cwa_data.get_samples()
+        print(samples)
         print('Done')
     print('End')
 
