@@ -696,6 +696,9 @@ class CwaData():
 
         return self.samples
 
+    def get_sample_rate(self):
+        return self.data_format['frequency']
+
 
 def _export(cwa_data, filename):
     print('Exporting...')
@@ -706,8 +709,8 @@ def _export(cwa_data, filename):
 
 
 def main():
-    filename = '../../_local/sample.cwa'
-    #filename = '../../_local/mixed_wear.cwa'
+    #filename = '../../_local/sample.cwa'
+    filename = '../../_local/mixed_wear.cwa'
     #filename = '../../_local/AX6-Sample-48-Hours.cwa'
     #filename = '../../_local/AX6-Static-8-Day.cwa'
     #filename = '../../_local/longitudinal_data.cwa'
