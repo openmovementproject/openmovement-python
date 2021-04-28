@@ -11,8 +11,9 @@ import cwa_load
 import numpy as np
 from numpy.lib.stride_tricks import sliding_window_view
 
+NUM_AXES = 3
 
-def find_stationary_points(samples, sample_rate, temperature=None, verbose=False):
+def find_stationary_points(sample_rate, samples, temperature=None, verbose=False):
     if verbose: print('Finding stationary points...', flush=True)
 
     # Parameters
@@ -21,8 +22,8 @@ def find_stationary_points(samples, sample_rate, temperature=None, verbose=False
 
     # Samples should be triaxial
     axes = samples.shape[1]
-    if axes != 3:
-        print('WARNING: Only designed to find stationary points in triaxial accelerometer data (%d-axis)' % axes)
+    if axes != NUM_AXES:
+        print('WARNING: Only designed to find stationary points in %d-axis accelerometer data (%d-axes)' % (NUM_AXES, axes))
 
     # Use zero when temperature not used
     if temperature is None:
@@ -71,11 +72,42 @@ def find_stationary_points(samples, sample_rate, temperature=None, verbose=False
     
 
 def calculate_calibration(stationary_points):
-    
-    pass
+    # Configuration parameters
+    config = {
+        "max_iter": 1000,				    # 
+        "conv_crit": 0.000001,				# 
+        "axis_range": 0.3,					# Required per-axis range in stationary points (0.3)
+        "maximum_scale_diff": 0.2,			# Maximum amount of per-axis scale (absolute difference from 1)
+        "maximum_offset_diff": 0.41,		# Maximum amount of per-axis offset
+        "maximum_temp_offset_diff": 0.02,	# Maximum amount of per-axis temperature offset
+    }
 
-def apply_calibration(sample_values, calibration):
-    pass
+    # Initial values
+    calibration = {
+        'scale': np.ones(NUM_AXES),
+        'offset': np.zeros(NUM_AXES),
+        'temp_offset': np.zeros(NUM_AXES),
+        'reference_temperature': 0.0,
+        'num_axes': 0,
+        'error_code': 0,
+    }
+
+    # TODO: Converge
+
+    return calibration
+
+
+def apply_calibration(calibration, samples, temperature):
+    # Use zero when temperature not used
+    if temperature is None:
+        print('WARNING: Temperature not being used to apply calibration')
+        temperature = np.zeros(samples.shape[0])
+
+    # Rescaling is:  v = (v + offset) * scale + (temp - referenceTemperature) * tempOffset
+    calibrated = (samples + calibration['offset']) * calibration['scale']
+    print(temperature)
+    calibrated += calibration['temp_offset'] * (temperature - calibration['reference_temperature'])
+    return calibrated
 
 def main():
     filename = '../../_local/sample.cwa'
@@ -86,15 +118,18 @@ def main():
     with cwa_load.CwaData(filename, verbose=True, include_gyro=False, include_temperature=True) as cwa_data:
         sample_values = cwa_data.get_sample_values()    # time,accel_x,accel_y,accel_z,*_,temperature
 
+        samples = sample_values[:,1:4]
+        temperature = sample_values[:,-1]
+
         sample_rate = cwa_data.get_sample_rate()
-        stationary_points = find_stationary_points(sample_values[:,2:5], sample_rate, sample_values[:,-1], verbose=True)
+        stationary_points = find_stationary_points(sample_rate, samples, temperature, verbose=True)
         #print(stationary_points)
 
         calibration = calculate_calibration(stationary_points)
         print(calibration)
 
-        #apply_calibration(sample_values)
-        #print(sample_values)
+        calibrated = apply_calibration(calibration, samples, temperature)
+        print(calibrated)
 
         print('Done')
         
