@@ -515,7 +515,7 @@ class CwaData():
 
 
     def _find_segments(self):
-        # TODO: Segments not yet used.  Possibly return as raw sample ranges: scale by self.data_format.data['samplesPerSector']
+        # TODO: Segments not yet used.  Possibly return as raw sample ranges: scale by self.data_format.data['samplesPerSector']  -- Masked array/numpy.compress()/numpy.take()?
         pass
 
         # if self.verbose: print('Finding segments...', flush=True)
