@@ -469,12 +469,25 @@ class CwaData():
 
         #self.df.index.name = 'row_index'
 
-        #if self.verbose: print('Adding sector index...', flush=True)
-        #self.df['sector_index'] = np.arange(0, self.df.shape[0])
+        if self.verbose: print('Adding sector index...', flush=True)
+        self.df['sector_index'] = np.arange(0, self.df.shape[0])
 
         if self.verbose: print('Adding sample index...', flush=True)
-        self.df['sample_index'] = np.arange(0, self.df.shape[0]) * self.data_format['sampleCount']
+        self.df['sample_index'] = self.df['sector_index'] * self.data_format['sampleCount']
 
+        # Calculate sectors checksums: view data as 16-bit LE integers, reshaped per 512-byte sector, summed (wrapped to zero)
+        if self.verbose: print('Calculating checksums...', flush=True)
+        np_words = np.frombuffer(self.data_buffer, dtype=np.dtype('<H'), count=-1)
+        np_sector_words = np.reshape(np_words, (-1, SECTOR_SIZE // 2))
+        self.df['checksum_sum'] = np.sum(np_sector_words, dtype=np.int16, axis=1)
+
+        # Valid sectors: zero checksum, correct header and packet-length, matching initial data format (numAxesBPS and rateCode)
+        if self.verbose: print('Determining valid sectors...', flush=True)
+        self.df['valid_sector'] = ((self.df.checksum_sum == 0) & (self.df.packet_header == 22593) & (self.df.packet_length == 508) & (self.df.num_axes_bps == self.data_format['numAxesBPS']) & (self.df.rate_code == self.data_format['rateCode']))
+        #print(self.df.valid_sector)
+
+
+    def _parse_times(self):
         if self.verbose: print('Parsing timestamps...', flush=True)
         #self.df['timestamp'] = self.df['timestamp_packed'].apply(lambda timestamp_packed: _fast_timestamp(timestamp_packed))
         _fast_timestamp_vectorized = np.vectorize(_fast_timestamp, otypes=[np.uint32])
@@ -497,17 +510,6 @@ class CwaData():
         # Adjusting timestamp offset
         if self.verbose: print('Timestamp index...', flush=True)
         self.df['timestamp_index'] = self.df['sample_index'] + self.df['timestamp_offset']
-
-        # Calculate sectors checksums: view data as 16-bit LE integers, reshaped per 512-byte sector, summed (wrapped to zero)
-        if self.verbose: print('Calculating checksums...', flush=True)
-        np_words = np.frombuffer(self.data_buffer, dtype=np.dtype('<H'), count=-1)
-        np_sector_words = np.reshape(np_words, (-1, SECTOR_SIZE // 2))
-        self.df['checksum_sum'] = np.sum(np_sector_words, dtype=np.int16, axis=1)
-
-        # Valid sectors: zero checksum, correct header and packet-length, matching initial data format (numAxesBPS and rateCode)
-        if self.verbose: print('Determining valid sectors...', flush=True)
-        self.df['valid_sector'] = ((self.df.checksum_sum == 0) & (self.df.packet_header == 22593) & (self.df.packet_length == 508) & (self.df.num_axes_bps == self.data_format['numAxesBPS']) & (self.df.rate_code == self.data_format['rateCode']))
-        #print(self.df.valid_sector)
 
 
 
@@ -558,59 +560,85 @@ class CwaData():
         else:
             raise Exception('Unhandled data format')
 
-        # Which axes
-        axis_count = 1  # time
-        has_accel = 'accelAxis' in self.data_format and self.data_format['accelAxis'] >= 0
-        has_gyro = 'gyroAxis' in self.data_format and self.data_format['gyroAxis'] >= 0
-        has_mag = 'magAxis' in self.data_format and self.data_format['magAxis'] >= 0
+        # Which sensors?
+        has_accel = self.include_accel and 'accelAxis' in self.data_format and self.data_format['accelAxis'] >= 0
+        has_gyro = self.include_gyro and 'gyroAxis' in self.data_format and self.data_format['gyroAxis'] >= 0
+        has_mag = self.include_mag and 'magAxis' in self.data_format and self.data_format['magAxis'] >= 0
+        
+        # Calculate dimensions
+        axis_count = 0  # time
+        if self.include_time: axis_count += 1
         if has_accel: axis_count += 3
         if has_gyro: axis_count += 3
         if has_mag: axis_count += 3
-        labels = []
+        if self.include_light: axis_count += 1
+        if self.include_temperature: axis_count += 1
+        self.labels = []
 
-        if self.verbose: print('Timestamp interpolate...', flush=True)
+        if self.verbose: print('Create output...', flush=True)
         self.sample_values = np.ndarray(shape=(self.raw_samples.shape[0], axis_count))
         current_axis = 0
 
-        # Interpolate timestamps (NOTE: np.interp() does not extrapolate to the few samples before/after first/last timestamp)
-        self.sample_values[:,current_axis] = np.interp(np.arange(0, self.df.shape[0] * self.data_format['sampleCount']), self.df['timestamp_index'], self.df['timestamp'])
-        labels = labels + ['time']
-        current_axis += 1
+        if self.include_time:
+            # Unpack the timestamps, adjust timestamp offset, add fractional
+            self._parse_times()
+            if self.verbose: print('Timestamp interpolate...', flush=True)
+            # Interpolate timestamps (NOTE: np.interp() does not extrapolate to the few samples before/after first/last timestamp)
+            self.sample_values[:,current_axis] = np.interp(np.arange(0, self.df.shape[0] * self.data_format['sampleCount']), self.df['timestamp_index'], self.df['timestamp'])
+            self.labels = self.labels + ['time']
+            current_axis += 1
 
         if has_accel:
             if self.verbose: print('Sample data: scaling accel... 1/' + str(self.data_format['accelUnit']), flush=True)
-            self.sample_values[:,current_axis:current_axis+3] = self.raw_samples[:, self.data_format['accelAxis']:self.data_format['accelAxis']+3]
-            self.sample_values[:,current_axis:current_axis+3] *= (1.0 / self.data_format['accelUnit'])
-            labels = labels + ['accel_x', 'accel_y', 'accel_z']
+            self.sample_values[:,current_axis:current_axis+3] = self.raw_samples[:, self.data_format['accelAxis']:self.data_format['accelAxis']+3] * (1.0 / self.data_format['accelUnit'])
+            self.labels = self.labels + ['accel_x', 'accel_y', 'accel_z']
             current_axis += 3
 
         if has_gyro:
             if self.verbose: print('Sample data: scaling gyro... 1/' + str(self.data_format['gyroUnit']), flush=True)
-            self.sample_values[:,current_axis:current_axis+3] = self.raw_samples[:, self.data_format['gyroAxis']:self.data_format['gyroAxis']+3]
-            self.sample_values[:,current_axis:current_axis+3] *= (1.0 / self.data_format['gyroUnit'])
-            labels = labels + ['gyro_x', 'gyro_y', 'gyro_z']
+            self.sample_values[:,current_axis:current_axis+3] = self.raw_samples[:, self.data_format['gyroAxis']:self.data_format['gyroAxis']+3] * (1.0 / self.data_format['gyroUnit'])
+            self.labels = self.labels + ['gyro_x', 'gyro_y', 'gyro_z']
             current_axis += 3
 
         if has_mag:
             if self.verbose: print('Sample data: scaling mag... 1/' + str(self.data_format['magUnit']), flush=True)
-            self.sample_values[:,current_axis:current_axis+3] = self.raw_samples[:, self.data_format['magAxis']:self.data_format['magAxis']+3]
-            self.sample_values[:,current_axis:current_axis+3] *= (1.0 / self.data_format['magUnit'])
-            labels = labels + ['mag_x', 'mag_y', 'mag_z']
+            self.sample_values[:,current_axis:current_axis+3] = self.raw_samples[:, self.data_format['magAxis']:self.data_format['magAxis']+3] * (1.0 / self.data_format['magUnit'])
+            self.labels = self.labels + ['mag_x', 'mag_y', 'mag_z']
             current_axis += 3
 
+        if self.include_light:
+            if self.verbose: print('Light resample...', flush=True)
+            # Resample light ((self.header['deviceType'] == 'AX6') values could be scaled by 10 to match AX3?)
+            self.sample_values[:,current_axis] = np.interp(np.arange(0, self.df.shape[0] * self.data_format['sampleCount']), self.df['sample_index'], self.df['scale_light'] & 0x3ff)
+            self.labels = self.labels + ['light']
+            current_axis += 1
+
+        if self.include_temperature:
+            if self.verbose: print('Temperature resample...', flush=True)
+            # Resample temperature, scaled
+            self.sample_values[:,current_axis] = np.interp(np.arange(0, self.df.shape[0] * self.data_format['sampleCount']), self.df['sample_index'], (self.df['temperature'] & 0x3ff) * (75.0 / 256) - 50)
+            self.labels = self.labels + ['temperature']
+            current_axis += 1
+        
         del self.raw_samples
-
-        if self.verbose: print('Creating DataFrame', flush=True)
-        self.samples = pd.DataFrame(self.sample_values, columns=labels)
-
+        self.samples = None
         if self.verbose: print('Interpreted data', flush=True)
+        
+        if current_axis != axis_count:
+            raise Exception('Internal error: not all output axes accounted for')
 
 
 
-    def __init__(self, filename, verbose=False):
+    def __init__(self, filename, verbose=False, include_time=True, include_accel=True, include_gyro=True, include_mag=True, include_light=False, include_temperature=False):
         start_time = time.time()
 
         self.verbose = verbose
+        self.include_time = include_time
+        self.include_accel = include_accel
+        self.include_gyro = include_gyro
+        self.include_mag = include_mag
+        self.include_light = include_light
+        self.include_temperature = include_temperature
 
         self.filename = filename
         self.fh = None
@@ -638,18 +666,9 @@ class CwaData():
     def __del__(self):
         self.close()
 
-    # # Iterating can use self
-    # def __iter__(self):
-    #     return self
-
-    # # Process next data line
-    # def __next__(self):
-    #     try:
-    #         row = next(self.reader)
-    #     except StopIteration:
-    #         self.close()
-    #         raise   # Cascade StopIteration to caller
-    #     return row
+    # Iterate
+    def __iter__(self):
+        return iter(self.sample_values)
 
     def close(self):
         """Close the underlying file.  Automatically closed in with() block or when GC'd."""
@@ -671,16 +690,19 @@ class CwaData():
 
     def get_samples(self):
         """Return an DataFrame for (time, accel_x, accel_y, accel_z) or (time, accel_x, accel_y, accel_z, gyro_x, gyro_y, gyro_z)"""
+        if self.samples is None:
+            self.samples = pd.DataFrame(self.sample_values, columns=self.labels)
+
         return self.samples
 
 
 def main():
-    filename = '../../_local/sample.cwa'
+    #filename = '../../_local/sample.cwa'
     #filename = '../../_local/mixed_wear.cwa'
     #filename = '../../_local/AX6-Sample-48-Hours.cwa'
     #filename = '../../_local/AX6-Static-8-Day.cwa'
     #filename = '../../_local/longitudinal_data.cwa'
-    with CwaData(filename, verbose=True) as cwa_data:
+    with CwaData(filename, verbose=True, include_gyro=False, include_temperature=True) as cwa_data:
         sample_values = cwa_data.get_sample_values()
         print(sample_values)
         samples = cwa_data.get_samples()
