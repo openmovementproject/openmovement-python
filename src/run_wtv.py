@@ -1,25 +1,30 @@
 import os
 import sys
 import filename_info
-from openmovement import timeseries_csv, calc_wtv_iter
+from openmovement import timeseries_csv, calc_wtv_iter, cwa_load
 
 def run_wtv(source_file, test_load_everything=False):
+    ext = '.cwtv.csv'
     output_file = os.path.splitext(source_file)[0] + '.cwtv.csv'
 
-    # (Experimental) Only use this option for scaled triaxial values with full timestamps
-    if test_load_everything:
+    if os.path.splitext(source_file)[1].lower() == '.cwa':
+        ext = '.cwa' + ext
+        data = cwa_load.CwaData(source_file, verbose=True, include_gyro=False, include_temperature=False)
+        row_iterator = iter(data)
+    elif test_load_everything: # (Experimental) Only use this option for scaled triaxial values with full timestamps
         import numpy as np
         data = timeseries_csv.csv_load_pandas(source_file)
-        tscsv = iter(data)
+        row_iterator = iter(data)
     else:
-        # Use the CSV iterator with automatic offset/scaling
-        tscsv = timeseries_csv.TimeseriesCsv(source_file, {
+        # Use the CSV iterator with automatic time-offset/scaling
+        row_iterator = timeseries_csv.TimeseriesCsv(source_file, {
             "time_zero": filename_info.csv_time_from_filename(source_file), 
             "global_scale": filename_info.csv_scale_from_filename(source_file)
         })
 
-    wtv_calc = calc_wtv_iter.CalcWtvIter(tscsv, {})
+    wtv_calc = calc_wtv_iter.CalcWtvIter(row_iterator, {})
     
+    output_file = os.path.splitext(source_file)[0] + ext
     with open(output_file, 'w') as writer:
         writer.write("Time,Wear time (30 mins)\n")
         feedback_time = None

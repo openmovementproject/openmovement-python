@@ -21,7 +21,6 @@ def run_svm(source_file, test_load_everything=False):
             "global_scale": filename_info.csv_scale_from_filename(source_file)
         })
     
-    #print(row_iterator.header)
     svm_calc = calc_svm_iter.CalcSvmIter(row_iterator, {})
     
     output_file = os.path.splitext(source_file)[0] + ext
