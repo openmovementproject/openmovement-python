@@ -30,6 +30,7 @@
         "YYYYYYMM",
         "arange",
         "astype",
+        "ccsvm",
         "csvm",
         "cwtv",
         "dtype",

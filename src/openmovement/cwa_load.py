@@ -4,6 +4,7 @@ Dan Jackson, Open Movement, 2017-2021
 Derived from cwa_metadata.py CWA Metadata Reader by Dan Jackson, Open Movement.
 """
 
+import os
 import sys
 import time
 from datetime import datetime
@@ -541,7 +542,7 @@ class CwaData():
             if self.verbose: print('Sample data: unpacking...', flush=True)
             # Create 2D strided view of all raw sample data packed DWORDs, flatten to a single array (copies), unpack
             np_dword = np.frombuffer(self.data_buffer[30:len(self.data_buffer)-2], dtype=np.dtype('<I'), count=-1)
-            dword_view = np.lib.stride_tricks.as_strided(np_dword, (len(self.data_buffer) // SECTOR_SIZE, 120), (4, SECTOR_SIZE), writeable=False)
+            dword_view = np.lib.stride_tricks.as_strided(np_dword, (120, len(self.data_buffer) // SECTOR_SIZE), (4, SECTOR_SIZE), writeable=False)
             packed = dword_view.flatten(order='K')
             exponent = packed >> 30
             self.raw_samples = np.ndarray(shape=(dword_view.size, 3), dtype=np.int16)
@@ -554,7 +555,7 @@ class CwaData():
             if self.verbose: print('Sample data: flattening...', flush=True)
             # Create 2D strided view of all raw sample data WORDs before flattening and reshaping
             np_word = np.frombuffer(self.data_buffer[30:len(self.data_buffer)-2], dtype=np.dtype('<h'), count=-1)
-            word_view = np.lib.stride_tricks.as_strided(np_word, (len(self.data_buffer) // SECTOR_SIZE, 240), (2, SECTOR_SIZE), writeable=False)
+            word_view = np.lib.stride_tricks.as_strided(np_word, (240, len(self.data_buffer) // SECTOR_SIZE), (2, SECTOR_SIZE), writeable=False)
             self.raw_samples = word_view.flatten(order='K')
             self.raw_samples = np.reshape(self.raw_samples, (-1, self.data_format['channels']))
         else:
@@ -696,18 +697,30 @@ class CwaData():
         return self.samples
 
 
+def _export(cwa_data, filename):
+    print('Exporting...')
+    with open(filename, "wt") as fh:
+        fh.write(','.join(cwa_data.labels) + '\n')
+        for row in cwa_data:
+            fh.write(_timestamp_string(row[0]) + ',' + ','.join([str(v) for v in row[1:]]) + '\n')
+
+
 def main():
-    #filename = '../../_local/sample.cwa'
+    filename = '../../_local/sample.cwa'
     #filename = '../../_local/mixed_wear.cwa'
     #filename = '../../_local/AX6-Sample-48-Hours.cwa'
     #filename = '../../_local/AX6-Static-8-Day.cwa'
     #filename = '../../_local/longitudinal_data.cwa'
-    with CwaData(filename, verbose=True, include_gyro=False, include_temperature=True) as cwa_data:
+    with CwaData(filename, verbose=True, include_gyro=False, include_temperature=False) as cwa_data:
         sample_values = cwa_data.get_sample_values()
         print(sample_values)
         samples = cwa_data.get_samples()
         print(samples)
+
+        #_export(cwa_data, os.path.splitext(filename)[0] + '.cwa.csv')
+
         print('Done')
+        
     print('End')
 
 if __name__ == "__main__":
