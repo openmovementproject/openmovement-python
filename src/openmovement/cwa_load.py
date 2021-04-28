@@ -540,7 +540,7 @@ class CwaData():
             # Create 2D strided view of all raw sample data packed DWORDs, flatten to a single array (copies), unpack
             np_dword = np.frombuffer(self.data_buffer[30:len(self.data_buffer)-2], dtype=np.dtype('<I'), count=-1)
             dword_view = np.lib.stride_tricks.as_strided(np_dword, (len(self.data_buffer) // SECTOR_SIZE, 120), (4, SECTOR_SIZE), writeable=False)
-            packed = dword_view.flatten()
+            packed = dword_view.flatten(order='K')
             exponent = packed >> 30
             self.raw_samples = np.ndarray(shape=(dword_view.size, 3), dtype=np.int16)
             self.raw_samples[:,0] = ((((packed      ) & 0x3ff) ^ 0x0200) - 0x0200) << exponent
@@ -553,7 +553,7 @@ class CwaData():
             # Create 2D strided view of all raw sample data WORDs before flattening and reshaping
             np_word = np.frombuffer(self.data_buffer[30:len(self.data_buffer)-2], dtype=np.dtype('<h'), count=-1)
             word_view = np.lib.stride_tricks.as_strided(np_word, (len(self.data_buffer) // SECTOR_SIZE, 240), (2, SECTOR_SIZE), writeable=False)
-            self.raw_samples = word_view.flatten()
+            self.raw_samples = word_view.flatten(order='K')
             self.raw_samples = np.reshape(self.raw_samples, (-1, self.data_format['channels']))
         else:
             raise Exception('Unhandled data format')
@@ -675,10 +675,10 @@ class CwaData():
 
 
 def main():
-    #filename = '../../_local/sample.cwa'
+    filename = '../../_local/sample.cwa'
     #filename = '../../_local/mixed_wear.cwa'
     #filename = '../../_local/AX6-Sample-48-Hours.cwa'
-    filename = '../../_local/AX6-Static-8-Day.cwa'
+    #filename = '../../_local/AX6-Static-8-Day.cwa'
     #filename = '../../_local/longitudinal_data.cwa'
     with CwaData(filename, verbose=True) as cwa_data:
         sample_values = cwa_data.get_sample_values()
