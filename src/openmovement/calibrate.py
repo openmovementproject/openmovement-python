@@ -72,6 +72,10 @@ def find_stationary_points(sample_rate, samples, temperature=None, verbose=False
     
 
 def calculate_calibration(stationary_points):
+    # Stationary points: (mean_x, mean_y, mean_z, temperature)
+    samples = stationary_points[:,0:3]
+    temperature = stationary_points[:,3]
+
     # Configuration parameters
     config = {
         "max_iter": 1000,				    # 
@@ -92,8 +96,30 @@ def calculate_calibration(stationary_points):
         'error_code': 0,
     }
 
-    # TODO: Converge
 
+    # TODO: Check unit sphere coverage on each axis against config['axis_range']
+
+
+    # Iterate to converge
+    for iter in range(config['max_iter']):
+
+        # Apply current calibration
+        scaled_points = apply_calibration(calibration, samples, temperature)
+
+        # Project onto unit sphere
+        targets = (scaled_points.transpose() / np.sqrt(np.sum(scaled_points * scaled_points,axis=1))).transpose()
+
+        # Fit
+        for axis in [0,1,2]:
+
+            # TODO: This is only 1D on scale/offset and is not currently 2D for temperature_offset
+            (scale, offset) = np.polyfit(scaled_points[:,axis], targets[:,axis], 1)
+        
+            # adapt
+            calibration['scale'][axis] *= scale
+            calibration['offset'][axis] += offset
+
+    print(calibration)
     return calibration
 
 
@@ -105,9 +131,15 @@ def apply_calibration(calibration, samples, temperature):
 
     # Rescaling is:  v = (v + offset) * scale + (temp - referenceTemperature) * tempOffset
     calibrated = (samples + calibration['offset']) * calibration['scale']
-    print(temperature)
-    calibrated += calibration['temp_offset'] * (temperature - calibration['reference_temperature'])
+    shifted_temperature = temperature - calibration['reference_temperature']
+
+    # Repeat over axes for multiplying
+    shifted_temperature = shifted_temperature[:, np.newaxis].repeat(3, axis=1)
+    temp_offsets = calibration['temp_offset'] * shifted_temperature
+
+    calibrated += temp_offsets
     return calibrated
+
 
 def main():
     filename = '../../_local/sample.cwa'
