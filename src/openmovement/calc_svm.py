@@ -8,29 +8,25 @@ def calculate_svm(sample_values, epoch_time_interval=60, relative_to_time=None):
     relative_to_time      -- None=align to start of data, 0=align to wall-clock time
     """
 
-    # Split into (timestamp) and (accel_x,accel_y,accel_z)
-    timestamps = sample_values[:,0]
-    samples = sample_values[:,1:4]
+    # Split samples into epochs
+    epochs = epoch.split_into_epochs(sample_values, epoch_time_interval, timestamps=timestamps, relative_to_time=relative_to_time)
 
-    # Calculate Euclidean norm minus one 
-    samples_enmo = np.sqrt(np.sum(samples * samples, axis=1)) - 1
-    # This scalar vector magnitude approach takes the absolute value
-    samples_svm = np.abs(samples_enmo)
-
-    # Split SVM into epochs
-    (epochs, epoch_indices) = epoch.split_into_epochs(samples_svm, epoch_time_interval, timestamps=timestamps, relative_to_time=relative_to_time, return_indices=True)
-
-    # Take mean of SVM
+    # Calculate each epoch
     num_epochs = len(epochs)
-    mean_svm = np.empty(num_epochs)
+    result = np.empty((num_epochs,2))
     for epoch_index in range(num_epochs):
         this_epoch = epochs[epoch_index]
-        mean_svm[epoch_index] = np.mean(this_epoch)
 
-    # Locate timestamp for each epoch
-    epoch_timestamps = np.take(timestamps, epoch_indices)
+        epoch_time = this_epoch[0,0]
 
-    # Create a result of (time,value)
-    result = np.column_stack((epoch_timestamps,mean_svm))
+        samples = this_epoch[:,1:4]
+        
+        # Calculate Euclidean norm minus one 
+        samples_enmo = np.sqrt(np.sum(samples * samples, axis=1)) - 1
+        # This scalar vector magnitude approach takes the absolute value
+        samples_svm = np.abs(samples_enmo)
+
+        result[epoch_index,0] = epoch_time
+        result[epoch_index,1] = np.mean(samples_svm)
 
     return result
