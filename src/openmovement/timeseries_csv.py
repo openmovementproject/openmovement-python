@@ -10,16 +10,20 @@ def csv_datetime(timestamp):
 
 
 # Convert a timestamp-with-no-timezone into a ISO-ish string representation (using UTC even though unknown zone, alternative is naive datetime which is assumed to be in the current local computer's time)
-def csv_datetime_string(time, with_milliseconds):
+def csv_datetime_string(time):
     if not isinstance(time, datetime.datetime):
         time = csv_datetime(time)
-    if with_milliseconds:
-        return time.isoformat(sep=' ',timespec='milliseconds')[0:23]
-    else:
-        return time.isoformat(sep=' ')[0:19]
+    return time.isoformat(sep=' ')[0:19]
 
 
+# Convert a timestamp-with-no-timezone into a ISO-ish string representation with milliseconds (using UTC even though unknown zone, alternative is naive datetime which is assumed to be in the current local computer's time)
+def csv_datetime_ms_string(time):
+    if not isinstance(time, datetime.datetime):
+        time = csv_datetime(time)
+    return time.isoformat(sep=' ',timespec='milliseconds')[0:23]
 
+
+# A little slower than pandas
 def csv_load_numpy(filename):
     """Use numpy to load ISO-timestamped x/y/z data"""
     import numpy as np
@@ -41,6 +45,7 @@ def csv_load_numpy(filename):
     )
 
 
+# Faster than numpy
 def csv_load_pandas(filename):
     """Use pandas to load ISO-timestamped x/y/z data"""
     import pandas as pd
@@ -207,7 +212,7 @@ def main():
     for values in tscsv:
         if tscsv.line_num >= 10:
             break
-        time_string = csv_datetime_string(values[0], True)
+        time_string = csv_datetime_ms_string(values[0])
         print('#' + str(tscsv.line_num) + ' @' + time_string + ' = ' + str(values))
 
 if __name__ == "__main__":

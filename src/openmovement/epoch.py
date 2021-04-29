@@ -1,6 +1,6 @@
 import numpy as np
 
-def split_into_epochs(sample_values, epoch_time_interval, timestamps=None, is_relative_to_first=False):
+def split_into_epochs(sample_values, epoch_time_interval, timestamps=None, relative_to_time=None, return_indices=False):
     """
     Split the given ndarray data (e.g. [[time,accel_x,accel_y,accel_y,*_]])
     ...based on the timestamps array (will use the first column if not given)
@@ -8,16 +8,24 @@ def split_into_epochs(sample_values, epoch_time_interval, timestamps=None, is_re
     """
 
     # The method requires at least two samples
+    if sample_values.shape[0] <= 0:
+        if return_indices:
+            return ([], np.zeros(0,dtype=int))
+        else:
+            return []
     if sample_values.shape[0] <= 1:
-        return [sample_values]
+        if return_indices:
+            return ([sample_values], np.zeros(1,dtype=int))
+        else:
+            return [sample_values]
 
     # Use the first column if timestamps not given
     if timestamps is None:
         timestamps = sample_values[:,0]
 
-    # Optionally make the epochs start with the first sample; otherwise use absolute time
-    epoch_time_offset = 0
-    if is_relative_to_first:
+    # By default, the epochs start with the first sample; otherwise use a fixed epoch (e.g. 0=wall clock time)
+    epoch_time_offset = relative_to_time
+    if epoch_time_offset is None:
         epoch_time_offset = timestamps[0]
 
     # Must use 1D timestamps
@@ -44,9 +52,15 @@ def split_into_epochs(sample_values, epoch_time_interval, timestamps=None, is_re
 
     del epoch_time_index
     del epoch_is_different_index
-    del epoch_indices
 
-    return epochs
+    if return_indices:
+        # Include index of first epoch
+        epoch_indices = np.insert(epoch_indices, 0, [0], axis=None)
+        return (epochs, epoch_indices)
+    else:
+        del epoch_indices
+        return epochs
+
 
 
 def split_into_blocks(sample_values, epoch_size_samples):

@@ -1,7 +1,7 @@
 import os
 import sys
 import filename_info
-from openmovement import timeseries_csv, cwa_load
+from openmovement import timeseries_csv, calc_svm_iter, cwa_load
 
 def run_svm(source_file, test_load_everything=False):
     ext = '.csvm.csv'
