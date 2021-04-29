@@ -45,6 +45,8 @@ result = om.execute(source_file, options)
 
 ## CWA Loader
 
+Load `.CWA` files directly into Python (requires `numpy` and `pandas`).
+
 ```python
 from openmovement import cwa_load
 
@@ -54,7 +56,11 @@ with CwaData(filename, verbose=True, include_gyro=False, include_temperature=Tru
     sample_values = cwa_data.get_sample_values()
     # As a pandas DataFrame
     samples = cwa_data.get_samples()
+```
 
+<!--
+TODO: Mention `calibrate` and `epoch`.
+-->
 
 <!--
 
