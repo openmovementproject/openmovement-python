@@ -20,7 +20,7 @@ def csv_scale_from_filename(csv_filename):
     global_scale = 1
     basename = os.path.splitext(os.path.basename(csv_filename))[0]
     if basename.endswith('_ACC'):
-        global_scale = 0.0002   # really 1/5000? Or possibly 1/4096?
+        global_scale = 0.0002   # possibly 1/4096?
     if basename.endswith('_GYR'):
         global_scale = 0.0305   # probably 1/32768
     if basename.endswith('_EEG') or basename.endswith('_EOG'):
