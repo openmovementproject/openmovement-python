@@ -9,16 +9,19 @@ Inspired by the algorithm in the GGIR package (http://cran.r-project.org/web/pac
 import cwa_load
 
 import numpy as np
+import epoch
 from numpy.lib.stride_tricks import sliding_window_view
 
 NUM_AXES = 3
+AXIS_STD_THRESHOLD = 0.013
+WINDOW_DURATION = 10
 
-def find_stationary_points(sample_rate, samples, temperature=None, verbose=False):
+def find_stationary_points(samples, sample_rate, temperature=None, window_duration = WINDOW_DURATION, axis_std_threshold = AXIS_STD_THRESHOLD, verbose=False):
     if verbose: print('Finding stationary points...', flush=True)
 
     # Parameters
-    axis_std_threshold = 0.013
-    window_duration = 10
+    window_size = int(window_duration * sample_rate)
+    if verbose: print('...window size: %d samples' % window_size, flush=True)
 
     # Samples should be triaxial
     axes = samples.shape[1]
@@ -40,13 +43,11 @@ def find_stationary_points(sample_rate, samples, temperature=None, verbose=False
         if temperature.shape[0] < samples.shape[0]:
             raise Exception('When the temperature is used, each sample must have a temperature')
 
-    # Divide into windows (window/sample/axis), (based on configured rate rather than actual)
+    # Divide into windows (window/sample/axis), (NOTE: based on configured rate rather than actual times)
     num_axes = samples.shape[1]
-    window_size = int(sample_rate * window_duration)
-    num_windows = samples.shape[0] // window_size
-    covered_samples = num_windows * window_size
-    windows = np.reshape(samples[0:covered_samples,:], (num_windows, -1, num_axes))
-    windows_temperature = np.reshape(temperature[0:covered_samples], (num_windows, -1))
+    windows = epoch.split_into_blocks(samples, window_size)
+    windows_temperature = epoch.split_into_blocks(temperature, window_size)
+    if verbose: print('...%d windows' % windows.shape[0], flush=True)
 
     # Transpose (axis/window/sample)
     per_axis_windows = np.transpose(windows, axes=[2,0,1])
@@ -71,7 +72,7 @@ def find_stationary_points(sample_rate, samples, temperature=None, verbose=False
     return stationary_periods
     
 
-def calculate_calibration(stationary_points):
+def find_calibration(stationary_points, verbose=False):
     # Stationary points: (mean_x, mean_y, mean_z, temperature)
     samples = stationary_points[:,0:3]
     temperature = stationary_points[:,3]
@@ -154,10 +155,10 @@ def main():
         temperature = sample_values[:,-1]
 
         sample_rate = cwa_data.get_sample_rate()
-        stationary_points = find_stationary_points(sample_rate, samples, temperature, verbose=True)
+        stationary_points = find_stationary_points(samples, sample_rate, temperature, verbose=True)
         #print(stationary_points)
 
-        calibration = calculate_calibration(stationary_points)
+        calibration = find_calibration(stationary_points)
         print(calibration)
 
         calibrated = apply_calibration(calibration, samples, temperature)
