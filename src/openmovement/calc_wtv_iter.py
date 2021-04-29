@@ -1,6 +1,6 @@
 from math import sqrt
 
-# "constants"
+# Constants
 WTV_EPOCH_TIME = 30 * 60    # 30 minutes
 WTV_NUM_AXES = 3            # Triaxial data
 # Non-wear if std-dev <3mg for at least 2 of the 3 axes
