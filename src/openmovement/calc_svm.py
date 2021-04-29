@@ -10,7 +10,7 @@ def calculate_svm(sample_values, epoch_time_interval=60, relative_to_time=None):
     """
 
     # Split samples into epochs
-    epochs = epoch.split_into_epochs(sample_values, epoch_time_interval, timestamps=timestamps, relative_to_time=relative_to_time)
+    epochs = epoch.split_into_epochs(sample_values, epoch_time_interval, relative_to_time=relative_to_time)
 
     # Calculate each epoch
     num_epochs = len(epochs)
