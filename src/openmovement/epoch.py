@@ -1,11 +1,16 @@
 import numpy as np
 
-def split_into_epochs(sample_values, timestamps=None, epoch_time_interval=60, is_relative_to_first=False):
+def split_into_epochs(sample_values, epoch_time_interval, timestamps=None, is_relative_to_first=False):
     """
-    Split the given in any given format, e.g. (time,accel_x,accel_y,accel_y,*_)
+    Split the given ndarray data (e.g. [[time,accel_x,accel_y,accel_y,*_]])
     ...based on the timestamps array (will use the first column if not given)
-    ...into an array of epochs of the specified time interval.
+    ...into a list of epochs of the specified time interval.
     """
+
+    # The method requires at least two samples
+    if sample_values.shape[0] <= 1:
+        return [sample_values]
+
     # Use the first column if timestamps not given
     if timestamps is None:
         timestamps = sample_values[:,0]
@@ -25,10 +30,6 @@ def split_into_epochs(sample_values, timestamps=None, epoch_time_interval=60, is
         if timestamps.shape[0] < sample_values.shape[0]:
             raise Exception('Each sample must have a timestamps')
 
-    # The below algorithm requires at least two samples
-    if sample_values.shape[0] <= 1:
-        return [sample_values]
-
     # Quantize into interval numbers
     epoch_time_index = (timestamps - epoch_time_offset) // epoch_time_interval
     
@@ -46,3 +47,22 @@ def split_into_epochs(sample_values, timestamps=None, epoch_time_interval=60, is
     del epoch_indices
 
     return epochs
+
+
+def split_into_blocks(sample_values, epoch_size_samples):
+    """
+    Returns a reshaped ndarray view of the given ndarray sample data (e.g. [[time,accel_x,accel_y,accel_y,*_]]) 
+    as blocks of equally-sized samples.  As the blocks must be of a fixed size, any remainder is discarded.
+    """
+    sample_count = sample_values.shape[0]
+    num_axes = None
+    if sample_values.ndim > 1:
+        num_axes = sample_values.shape[1]
+    num_windows = sample_count // epoch_size_samples
+    covered_sample_count = num_windows * epoch_size_samples
+    if num_axes is not None:
+        epochs = np.reshape(sample_values[0:covered_sample_count,:], (num_windows, -1, num_axes))
+    else:
+        epochs = np.reshape(sample_values[0:covered_sample_count], (num_windows, -1))
+    return epochs
+
