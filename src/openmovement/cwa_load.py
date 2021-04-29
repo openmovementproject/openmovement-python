@@ -714,7 +714,7 @@ def main():
     #filename = '../../_local/AX6-Sample-48-Hours.cwa'
     #filename = '../../_local/AX6-Static-8-Day.cwa'
     #filename = '../../_local/longitudinal_data.cwa'
-    with CwaData(filename, verbose=True, include_gyro=False, include_temperature=False) as cwa_data:
+    with CwaData(filename, verbose=True, include_gyro=False, include_temperature=True) as cwa_data:
         sample_values = cwa_data.get_sample_values()
         print(sample_values)
         samples = cwa_data.get_samples()
