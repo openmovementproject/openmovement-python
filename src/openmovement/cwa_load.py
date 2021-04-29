@@ -608,14 +608,14 @@ class CwaData():
             current_axis += 3
 
         if self.include_light:
-            if self.verbose: print('Light resample...', flush=True)
+            if self.verbose: print('Light interpolate...', flush=True)
             # Resample light ((self.header['deviceType'] == 'AX6') values could be scaled by 10 to match AX3?)
             self.sample_values[:,current_axis] = np.interp(np.arange(0, self.df.shape[0] * self.data_format['sampleCount']), self.df['sample_index'], self.df['scale_light'] & 0x3ff)
             self.labels = self.labels + ['light']
             current_axis += 1
 
         if self.include_temperature:
-            if self.verbose: print('Temperature resample...', flush=True)
+            if self.verbose: print('Temperature interpolate...', flush=True)
             # Resample temperature, scaled
             self.sample_values[:,current_axis] = np.interp(np.arange(0, self.df.shape[0] * self.data_format['sampleCount']), self.df['sample_index'], (self.df['temperature'] & 0x3ff) * (75.0 / 256) - 50)
             self.labels = self.labels + ['temperature']
