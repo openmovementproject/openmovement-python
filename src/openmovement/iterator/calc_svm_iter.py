@@ -2,7 +2,7 @@ from math import sqrt
 
 class CalcSvmIter:
     """
-    An iterator to calculate the SVM value for a given iterator yielding [time_seconds, x, y, z].
+    A (slow) iterator to calculate the SVM value for a given iterator yielding [time_seconds, x, y, z].
     options['epoch_size'] # seconds per epoch
     options['alignment']  # offset to align epoch; None=align to start of data; 0=align to wall-clock time
     """

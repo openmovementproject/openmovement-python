@@ -1,7 +1,8 @@
 import os
 import sys
 import filename_info
-from openmovement import timeseries_csv, calc_wtv_iter, cwa_load
+from openmovement import cwa_load
+from openmovement.iterator import timeseries_csv_iter, calc_wtv_iter
 
 def run_wtv(source_file, test_load_everything=False):
     ext = '.cwtv.csv'
@@ -12,12 +13,11 @@ def run_wtv(source_file, test_load_everything=False):
         data = cwa_load.CwaData(source_file, verbose=True, include_gyro=False, include_temperature=False)
         row_iterator = iter(data)
     elif test_load_everything: # (Experimental) Only use this option for scaled triaxial values with full timestamps
-        import numpy as np
-        data = timeseries_csv.csv_load_pandas(source_file)
+        data = timeseries_csv_iter.csv_load_pandas(source_file)
         row_iterator = iter(data)
     else:
         # Use the CSV iterator with automatic time-offset/scaling
-        row_iterator = timeseries_csv.TimeseriesCsv(source_file, {
+        row_iterator = timeseries_csv_iter.TimeseriesCsvIterator(source_file, {
             "time_zero": filename_info.csv_time_from_filename(source_file), 
             "global_scale": filename_info.csv_scale_from_filename(source_file)
         })
@@ -30,8 +30,8 @@ def run_wtv(source_file, test_load_everything=False):
         feedback_time = None
         feedback_start = None
         for time, is_worn in wtv_calc:
-            #time_dt = timeseries_csv.csv_datetime(time)
-            time_string = timeseries_csv.csv_datetime_string(time, False)
+            #time_dt = timeseries_csv_iter.csv_datetime(time)
+            time_string = timeseries_csv_iter.csv_datetime_string(time)
             writer.write(time_string + "," + str(is_worn) + "\n")
 
             # Periodic feedback per hour

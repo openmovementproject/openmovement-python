@@ -64,7 +64,7 @@ class RunningStats:
 
 class CalcWtvIter:
     """
-    An iterator to calculate the Wear-Time Validation (30-minute epochs) for a given iterator yielding [time_seconds, x, y, z].
+    A (slow) iterator to calculate the Wear-Time Validation (30-minute epochs) for a given iterator yielding [time_seconds, x, y, z].
     options['alignment']  # offset to align epoch; None=align to start of data; 0=align to wall-clock time
 
     Based on the method by van Hees et al in PLos ONE 2011 6(7), 

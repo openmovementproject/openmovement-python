@@ -11,7 +11,7 @@ WTV_STD_MIN_AXES = 2
 WTV_RANGE_CUTOFF = 0.050
 WTV_RANGE_MIN_AXES = 2
 
-def calculate_wtv(sample_values, epoch_time_interval=30*60, relative_to_time=None):
+def calculate_wtv(sample_values, epoch_time_interval=WTV_EPOCH_TIME, relative_to_time=None):
     """
     Calculate the Wear-Time Validation (30-minute epochs) for a given sample ndarray [[time_seconds, accel_x, accel_y, accel_z]].
 
@@ -24,9 +24,12 @@ def calculate_wtv(sample_values, epoch_time_interval=30*60, relative_to_time=Non
     (1 mg = 0.00981 m*s-2) for at least two out of the three axes,
     or if the value range, for at least two out of three axes, was less than 50 mg.
 
-    epoch_time_interval   -- seconds per epoch
+    epoch_time_interval   -- seconds per epoch (the algorithm is defined for 30 minutes)
     relative_to_time      -- None=align to start of data, 0=align to wall-clock time
     """
+
+    if epoch_time_interval != WTV_EPOCH_TIME:
+        eprint('WARNING: WTV algorithm is defined for %d minutes (but using %d minutes)' % (WTV_EPOCH_TIME, epoch_time_interval))
 
     # Split samples into epochs
     epochs = epoch.split_into_epochs(sample_values, epoch_time_interval, relative_to_time=relative_to_time)
