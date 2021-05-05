@@ -6,6 +6,9 @@ Based on a Matlab implementation by Nils Hammerla 2014,
 Inspired by the algorithm in the GGIR package (http://cran.r-project.org/web/packages/GGIR/) by Vincent T van Hees, Zhou Fang, Jing Hua Zhao.
 """
 
+# NOTE: Not quite complete - do not use!
+
+
 import cwa_load
 
 import numpy as np
@@ -128,7 +131,7 @@ def apply_calibration(calibration, samples, temperature):
     # Use zero when temperature not used
     if temperature is None:
         print('WARNING: Temperature not being used to apply calibration')
-        temperature = np.zeros(samples.shape[0])
+        temperature = np.full(samples.shape[0], calibration['reference_temperature'])
 
     # Rescaling is:  v = (v + offset) * scale + (temp - referenceTemperature) * tempOffset
     calibrated = (samples + calibration['offset']) * calibration['scale']
