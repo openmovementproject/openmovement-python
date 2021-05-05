@@ -1,19 +1,26 @@
 # Open Movement WAV File Loader
 # Dan Jackson
 
-# NOTE: Not quite complete - do not use!
-
-
+import datetime
 from struct import *
+import numpy as np
+import pandas as pd
 
 WAVE_FORMAT_PCM = 0x0001
+WAVE_FORMAT_IEEE_FLOAT = 0x0003
 WAVE_FORMAT_EXTENSIBLE = 0xFFFE
 
-def _parse_wav_header(buffer):
+def _parse_wav_info(buffer):
     """
     Parse a WAV file chunks to determine the data offset, type and metadata.
     """
-    header = {}
+    wav_info = {}
+
+    # Empty metadata
+    wav_info['name'] = None
+    wav_info['artist'] = None
+    wav_info['comment'] = None
+    wav_info['creation'] = None
 
     if len(buffer) < 28:
         raise Exception('Too small to be a valid WAV file')
@@ -65,14 +72,7 @@ def _parse_wav_header(buffer):
                 (format_tag,) = unpack('<H', guid[0:2])
 
             # Check format
-            if format_tag != WAVE_FORMAT_PCM:
-                raise Exception('Not PCM format')
-            if num_channels & 0xff <= 0:
-                raise Exception('No channels found')
-            if samples_per_sec <= 0 or samples_per_sec > 65535:
-                raise Exception('Invalid frequency')
-            if bits_per_sample <= 0:
-                raise Exception('No bits per sample')
+            wav_info['format'] = format_tag
 
             if bits_per_sample & 0x7 != 0:
                 print('WARNING: Bits-per-sample is not a whole number of bytes -- rounding up to nearest byte.')
@@ -84,13 +84,13 @@ def _parse_wav_header(buffer):
                 print('WARNING: Average bytes per second is not the expected number for the frequency, channels and bytes-per-sample.')
 
             # Set output values
-            header['bytes_per_channel'] = (bits_per_sample + 7) >> 3
-            header['num_channels'] = num_channels
-            header['frequency'] = samples_per_sec
+            wav_info['bytes_per_channel'] = (bits_per_sample + 7) >> 3
+            wav_info['num_channels'] = num_channels
+            wav_info['frequency'] = samples_per_sec
 
         elif chunk == b'data':
-            header['data_offset'] = ofs + 8
-            header['data_size'] = chunk_size
+            wav_info['data_offset'] = ofs + 8
+            wav_info['data_size'] = chunk_size
 
         elif chunk == b'LIST':
             (list_type,) = unpack('<4s', buffer[ofs+8:ofs+12])
@@ -105,15 +105,16 @@ def _parse_wav_header(buffer):
                         raise Exception('List Sub-chunk size is invalid: ' + str(sub_chunk_size))
 
                     info_type = None
-                    if sub_chunk == b'INAM': info_type = 'name'         # Track Title (Data about the recording itself)
-                    if sub_chunk == b'IART': info_type = 'artist'       # Artist Name (Data about the device that made the recording)
-                    if sub_chunk == b'ICMT': info_type = 'comments'     # Comments (Data about this file representation)
-                    if sub_chunk == b'ICRD': info_type = 'creation'     # Creation Date (Timestamp of first sample)
+                    if sub_chunk == b'INAM': info_type = 'name'         # Track Title
+                    if sub_chunk == b'IART': info_type = 'artist'       # Artist Name
+                    if sub_chunk == b'ICMT': info_type = 'comment'      # Comments
+                    if sub_chunk == b'ICRD': info_type = 'creation'     # Creation Date
                     
                     if info_type is not None:
-                        text = buffer[list_ofs + 8 : list_ofs + 8 + sub_chunk_size].decode('utf-8')
-                        header[info_type] = text
-                        #print('LIST-INFO: ' + info_type + ' == ' + header[info_type])
+                        # Remove any trailing null bytes
+                        text = buffer[list_ofs + 8 : list_ofs + 8 + sub_chunk_size].rstrip(b'\x00')
+                        wav_info[info_type] = text
+                        #print('LIST-INFO: ' + info_type + ' == ' + wav_info[info_type])
 
                     else:
                         print('WARNING: Unknown list-info type: ' + str(sub_chunk))
@@ -134,16 +135,164 @@ def _parse_wav_header(buffer):
         
         ofs += chunk_size + 8
     
-    if 'frequency' not in header or 'num_channels' not in header or 'bytes_per_channel' not in header:
+    if 'frequency' not in wav_info or 'num_channels' not in wav_info or 'bytes_per_channel' not in wav_info:
         raise Exception('Valid format not found')
     
-    if 'data_offset' not in header or 'data_size' not in header:
+    if 'data_offset' not in wav_info or 'data_size' not in wav_info:
         raise Exception('Data not found')
 
-    return header
+    return wav_info
 
 
+def _decode_comment(comment):
+    result = {}
+    entries = []
+    if comment is not None:
+        entries = comment.decode('ascii').split('\n')
+    for entry in entries:
+        parts = entry.split(':', 1)
+        name = parts[0].strip(' ')
+        if len(name) > 0:
+            value = None
+            if len(parts) > 1:
+                value = parts[1].strip(' ')
+            result[name] = value
+    return result
 
+
+def _parse_accel_info(wav_info):
+    info = {}
+
+    # General format checks
+    if wav_info['num_channels'] <= 0:
+        raise Exception('No channels found')
+    if wav_info['frequency'] <= 0 or wav_info['frequency'] > 65535:
+        raise Exception('Invalid frequency')
+    if wav_info['bytes_per_channel'] <= 0:
+        raise Exception('No data per sample')
+
+    format = None
+    global_range = 1
+    if wav_info['format'] == WAVE_FORMAT_PCM and wav_info['bytes_per_channel'] == 1:
+        format = 'B'    # Unsigned 8-bit integer
+        raise Exception('Unsigned data not supported')
+    elif wav_info['format'] == WAVE_FORMAT_PCM and wav_info['bytes_per_channel'] == 2:
+        format = 'h'    # Signed 16-bit integer
+        global_range = 1 << 15
+    elif wav_info['format'] == WAVE_FORMAT_PCM and wav_info['bytes_per_channel'] == 4:
+        format = 'i'    # Signed 32-bit integer
+        global_range = 1 << 31
+    elif wav_info['format'] == WAVE_FORMAT_PCM and wav_info['bytes_per_channel'] == 8:
+        format = 'q'    # Signed 64-bit integer
+        global_range = 1 << 63
+    elif wav_info['format'] == WAVE_FORMAT_IEEE_FLOAT and wav_info['bytes_per_channel'] == 2:
+        format = 'e'    # 16-bit float
+    elif wav_info['format'] == WAVE_FORMAT_IEEE_FLOAT and wav_info['bytes_per_channel'] == 4:
+        format = 'f'    # 32-bit float
+    elif wav_info['format'] == WAVE_FORMAT_IEEE_FLOAT and wav_info['bytes_per_channel'] == 8:
+        format = 'd'    # 64-bit double-precision float
+
+    if format is None:        
+        raise Exception('Unrecognized data storage format')
+    info['format'] = format
+    info['global_range'] = global_range
+    
+    # Data offset / size (bytes) directly from WAV file
+    info['data_offset'] = wav_info['data_offset']
+    info['data_size'] = wav_info['data_size']
+
+    # Frequency / channels directly from WAV file
+    info['frequency'] = wav_info['frequency']
+    info['num_channels'] = wav_info['num_channels']
+
+    # Number of samples
+    info['channel_span'] = wav_info['bytes_per_channel']
+    info['sample_span'] = info['num_channels'] * info['channel_span']
+    info['num_samples'] = info['data_size'] // info['sample_span']
+
+    ## Find time-offset from creation date (timestamp of first sample)
+    info['time_offset'] = 0
+    info['time_offset_datetime'] = None
+    if wav_info['creation'] is not None:
+        try:
+            info['time_offset_datetime'] = datetime.datetime.fromisoformat(wav_info['creation'].decode('ascii') + '+00:00')
+            info['time_offset'] = info['time_offset_datetime'].timestamp()
+        except Exception as e:
+            print('WARNING: Problem parsing timestamp: ' + str(wav_info['creation']) + ' -- ' + str(e))
+
+    # (INAM) name: Track title (data about the recording itself)
+    info['recording'] = _decode_comment(wav_info['name'])
+    
+    # (IART) artist: Artist name (data about the device that made the recording)
+    info['device'] = _decode_comment(wav_info['artist'])
+
+    # (ICMT) comment: Comments (data about this file representation)
+    info['representation'] = _decode_comment(wav_info['comment'])
+
+    # Empty axis allocation and scaling
+    info['scale'] = [1] * info['num_channels']
+    info['sensor'] = [None] * info['num_channels']
+    info['axis'] = [None] * info['num_channels']
+
+    # Decode channel sensor/axis assignment
+    for channel in range(0, info['num_channels']):
+        tag_channel = 'Channel-' + str(channel + 1)
+        if tag_channel in info['representation']:
+            channel_name = info['representation'][tag_channel]
+            parts = channel_name.split('-', 1)
+            info['sensor'][channel] = parts[0]
+            if len(parts) > 1:
+                axis = parts[1]
+                if len(axis) == 1 and ord(axis[0]) >= ord('X') and ord(axis[0]) <= ord('Z'):
+                    axis = ord(axis[0]) - ord('X')
+                info['axis'][channel] = axis
+            
+    # Decode channel scaling
+    for channel in range(0, info['num_channels']):
+        tag_scale = 'Scale-' + str(channel + 1)
+        if tag_scale in info['representation']:
+            scale_value = float(info['representation'][tag_scale])
+            info['scale'][channel] = scale_value
+
+    # Find sensor axis index
+    info['accel_axis'] = None
+    info['accel_scale'] = None
+    info['gyro_axis'] = None
+    info['gyro_scale'] = None
+    info['mag_axis'] = None
+    info['mag_scale'] = None
+    info['aux_axis'] = None
+    for channel in range(0, info['num_channels']):
+        if info['sensor'][channel] == 'Aux':
+            info['aux_axis'] = channel
+        if info['axis'][channel] == 0:
+            tag = info['sensor'][channel].lower() + '_axis'
+            info[tag] = channel
+
+    # Check triaxial and contiguous
+    if info['accel_axis'] is not None:
+        channel = info['accel_axis']
+        info['accel_scale'] = info['scale'][channel]
+        if channel + 3 > info['num_channels'] or info['sensor'][channel + 1] != info['sensor'][channel] or info['sensor'][channel + 2] != info['sensor'][channel] or info['axis'][channel + 1] != 1 or info['axis'][channel + 2] != 2 or info['scale'][channel + 1] != info['scale'][channel] or info['scale'][channel + 2] != info['scale'][channel]:
+            raise Exception('Accel channels are not triaxial/contiguous/same-scaled')
+    if info['gyro_axis'] is not None:
+        channel = info['gyro_axis']
+        info['gyro_scale'] = info['scale'][channel]
+        if channel + 3 > info['num_channels'] or info['sensor'][channel + 1] != info['sensor'][channel] or info['sensor'][channel + 2] != info['sensor'][channel] or info['axis'][channel + 1] != 1 or info['axis'][channel + 2] != 2 or info['scale'][channel + 1] != info['scale'][channel] or info['scale'][channel + 2] != info['scale'][channel]:
+            raise Exception('Gyro channels are not triaxial/contiguous/same-scaled')
+    if info['mag_axis'] is not None:
+        channel = info['mag_axis']
+        info['mag_scale'] = info['scale'][channel]
+        if channel + 3 > info['num_channels'] or info['sensor'][channel + 1] != info['sensor'][channel] or info['sensor'][channel + 2] != info['sensor'][channel] or info['axis'][channel + 1] != 1 or info['axis'][channel + 2] != 2 or info['scale'][channel + 1] != info['scale'][channel] or info['scale'][channel + 2] != info['scale'][channel]:
+            raise Exception('Mag channels are not triaxial/contiguous/same-scaled')
+
+    # Assign aux channel if not already allocated
+    if info['aux_axis'] is None:
+        last_channel = info['num_channels'] - 1
+        if info['sensor'][last_channel] is None:
+            info['aux_axis'] = last_channel
+
+    return info
 
 
 class WavData():
@@ -165,20 +314,68 @@ class WavData():
 
 
     def _parse_header(self):
-        if self.verbose: print('Parsing header...', flush=True)
-        self.header = _parse_wav_header(self.full_buffer)
+        if self.verbose: print('Parsing WAV info...', flush=True)
+        self.wav_info = _parse_wav_info(self.full_buffer)
+        self.info = _parse_accel_info(self.wav_info)
 
-        self.data_offset = self.header['data_offset']
-        self.data_size = self.header['data_size']
 
-        bytes_per_row = self.header['num_channels'] * self.header['bytes_per_channel']
-        self.num_samples = self.data_size // bytes_per_row
+    def _interpret_samples(self):
+        raw_samples = np.frombuffer(self.full_buffer, dtype='<'+self.info['format'], offset=self.info['data_offset'], count=self.info['num_samples'] * self.info['num_channels'])
+        raw_samples = raw_samples.reshape(-1, self.info['num_channels'])
+        self.raw_samples = raw_samples
+        
+        # Raw data needs scaling by  info['accel_scale']/info['global_range']  or info['gyro_scale']/info['global_range']
 
-        ## TODO: Find axis allocation and scaling from metadata
+        # Which sensors?
+        has_accel = self.include_accel and self.info['accel_axis'] is not None
+        has_gyro = self.include_gyro and self.info['gyro_axis'] is not None
+        has_mag = self.include_mag and self.info['mag_axis'] is not None
+        
+        # Calculate dimensions
+        axis_count = 0  # time
+        if self.include_time: axis_count += 1
+        if has_accel: axis_count += 3
+        if has_gyro: axis_count += 3
+        if has_mag: axis_count += 3
+        self.labels = []
 
-        ## TODO: Find time-offset from metadata
+        if self.verbose: print('Create output...', flush=True)
+        self.sample_values = np.ndarray(shape=(self.raw_samples.shape[0], axis_count))
+        current_axis = 0
 
-        ## TODO: Check bytes/sample is 2
+        if self.include_time:
+            # Create time from timestamp offset and frequency
+            if self.verbose: print('Timestamp create...', flush=True)
+            time_start = self.info['time_offset']
+            time_stop = time_start + (self.info['num_samples'] / self.info['frequency'])
+            self.sample_values[:,current_axis] = np.linspace(time_start, time_stop, endpoint=False, num=self.info['num_samples'])
+            self.labels = self.labels + ['time']
+            current_axis += 1
+
+        if has_accel:
+            if self.verbose: print('Sample data: scaling accel... ' + str(self.info['accel_scale']), flush=True)
+            self.sample_values[:,current_axis:current_axis+3] = self.raw_samples[:, self.info['accel_axis']:self.info['accel_axis']+3] / self.info['global_range'] * self.info['accel_scale']
+            self.labels = self.labels + ['accel_x', 'accel_y', 'accel_z']
+            current_axis += 3
+
+        if has_gyro:
+            if self.verbose: print('Sample data: scaling gyro... ' + str(self.info['gyro_scale']), flush=True)
+            self.sample_values[:,current_axis:current_axis+3] = self.raw_samples[:, self.info['gyro_axis']:self.info['gyro_axis']+3] / self.info['global_range'] * self.info['gyro_scale'] 
+            self.labels = self.labels + ['gyro_x', 'gyro_y', 'gyro_z']
+            current_axis += 3
+
+        if has_mag:
+            if self.verbose: print('Sample data: scaling mag... ' + str(self.info['mag_scale']), flush=True)
+            self.sample_values[:,current_axis:current_axis+3] = self.raw_samples[:, self.info['mag_axis']:self.info['mag_axis']+3] / self.info['global_range'] * self.info['mag_scale']
+            self.labels = self.labels + ['mag_x', 'mag_y', 'mag_z']
+            current_axis += 3
+
+        del self.raw_samples
+        self.samples = None
+        if self.verbose: print('Interpreted data', flush=True)
+        
+        if current_axis != axis_count:
+            raise Exception('Internal error: not all output axes accounted for')
 
 
     def __init__(self, filename, verbose=False, include_time=True, include_accel=True, include_gyro=True, include_mag=True):
@@ -194,6 +391,7 @@ class WavData():
 
         self._read_data()
         self._parse_header()
+        self._interpret_samples()
 
 
     # Nothing to do at start of 'with'
@@ -226,19 +424,19 @@ class WavData():
             self.fh = None
 
 
-    # def get_sample_values(self):
-    #     """Return an ndarray of (time, accel_x, accel_y, accel_z) or (time, accel_x, accel_y, accel_z, gyro_x, gyro_y, gyro_z)"""
-    #     return self.sample_values
+    def get_sample_values(self):
+        """Return an ndarray of (time, accel_x, accel_y, accel_z) or (time, accel_x, accel_y, accel_z, gyro_x, gyro_y, gyro_z)"""
+        return self.sample_values
 
-    # def get_samples(self):
-    #     """Return an DataFrame for (time, accel_x, accel_y, accel_z) or (time, accel_x, accel_y, accel_z, gyro_x, gyro_y, gyro_z)"""
-    #     if self.samples is None:
-    #         self.samples = pd.DataFrame(self.sample_values, columns=self.labels)
+    def get_samples(self):
+        """Return an DataFrame for (time, accel_x, accel_y, accel_z) or (time, accel_x, accel_y, accel_z, gyro_x, gyro_y, gyro_z)"""
+        if self.samples is None:
+            self.samples = pd.DataFrame(self.sample_values, columns=self.labels)
 
-    #     return self.samples
+        return self.samples
 
     def get_sample_rate(self):
-        return self.header['frequency']
+        return self.info['frequency']
 
 
 
@@ -246,12 +444,11 @@ class WavData():
 def main():
     filename = '../../_local/sample.wav'
 
-    with WavData(filename, verbose=True, include_gyro=False) as wav_data:
-        print('Freq: ' + str(wav_data.get_sample_rate()))
-        # sample_values = wav_data.get_sample_values()
-        # print(sample_values)
-        # samples = wav_data.get_samples()
-        # print(samples)
+    with WavData(filename, verbose=True, include_gyro=True) as wav_data:
+        sample_values = wav_data.get_sample_values()
+        print(sample_values)
+        samples = wav_data.get_samples()
+        print(samples)
         #_export(wav_data, os.path.splitext(filename)[0] + '.wav.csv')
         print('Done')
         
