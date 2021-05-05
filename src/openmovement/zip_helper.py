@@ -10,14 +10,14 @@ import uuid
 class PotentiallyZippedFile:
     """
     Handles a "potentially zipped" file where a file is needed on (local) disk, and can't just be a stream
-    from a compressed file -- e.g. memory-mapped files or externall processes.
+    from a compressed file -- e.g. memory-mapped files or external processes.
     If the file extension is not '.zip', the original file is passed through via 'with' syntax.
     Otherwise, the file is expected to be a .ZIP archive, and it is searched for a matching filename.  
     It is an error if there is not exactly one matching filename.
     The matching file is extracted to a temporary location, and that location is passed through 'with'.
     At the end of the 'with' block, the temporary file is deleted.
 
-    filter -- one or more expressions to match the expected filename (default: the file in a single-file archive)
+    filter -- one or more case-insensitive expressions to match the expected filename (default: the file in a single-file archive)
     """
     def __init__(self, source_file, filters=['*.*'], verbose=False):
         self.source_file = source_file
@@ -38,7 +38,7 @@ class PotentiallyZippedFile:
         # If it ends in .ZIP, check that it is a valid archive
         if not zipfile.is_zipfile(self.source_file):
             raise Exception('File is named .ZIP but does not seem to be a valid archive')
-        
+
         # Open .ZIP archive
         with zipfile.ZipFile(self.source_file, 'r') as zip:
 
@@ -49,7 +49,7 @@ class PotentiallyZippedFile:
                 # Check whether this zip entry matches any of the filters
                 is_match = False
                 for filter in filters:
-                    if fnmatch.fnmatch(zi.filename, filter):
+                    if fnmatch.fnmatch(zi.filename.lower(), filter.lower()):
                         is_match = True
                 
                 # Ignore if not a match
@@ -67,9 +67,13 @@ class PotentiallyZippedFile:
             self.archive_file = '' + matching_zip_info.filename     # original filename
 
             # Create temporary filename
+            baseArchive = os.path.splitext(os.path.basename(self.source_file))[0]
+            baseFilename = os.path.splitext(os.path.basename(self.archive_file))[0]
+            randomString = str(uuid.uuid4()).replace('-', '')
             ext = os.path.splitext(self.archive_file)[1]
             temp_path = tempfile.gettempdir()
-            temp_filename = '_TEMP_UNZIP_' + str(uuid.uuid4()) + ext
+
+            temp_filename = '__TEMP-' + randomString + '__' + baseArchive + '__' + baseFilename + ext
             
             # Have to modify zip_info filename to extract to a file with another name (?!)
             matching_zip_info.filename = temp_filename
@@ -108,14 +112,14 @@ class PotentiallyZippedFile:
         if remove_file is None:
             return
 
-        # Safety precaution Filename must have this tag in to be deleted
-        if '_TEMP_UNZIP_' not in remove_file:
+        # Safety precaution: filename must have this tag in to be deleted
+        if '__TEMP-' not in remove_file:
             raise Exception('Expected safety marker not within temporary filename: ' + remove_file)
         
         # Try to remove the temporary file (any issue here will just give a warning)
         try:
             if self.verbose: print('REMOVING: ' + remove_file)
-            if '_TEMP_UNZIP_' in remove_file:    # Safety precaution
+            if '__TEMP-' in remove_file:    # Safety precaution
                 os.remove(remove_file)
         except Exception as e:
             eprint('WARNING: Problem removing temporary file (' + str(e) + '): ' + remove_file)
@@ -124,9 +128,10 @@ class PotentiallyZippedFile:
 # Test function
 def main():
     print('Start')
-    filename = '../../_local/sample.zip'
+    #filename = '../../_local/sample.zip'
+    filename = '../../_local/sample-nested.zip'
     #filename = '../../_local/sample.cwa'
-    with PotentiallyZippedFile(filename, ['*.cwa', '*.omx', '*.CWA', '*.OMX'], verbose=True) as file:
+    with PotentiallyZippedFile(filename, ['*.cwa', '*.omx'], verbose=True) as file:
         print('USING: ' + file)
     print('End')
 
