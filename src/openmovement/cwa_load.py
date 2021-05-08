@@ -686,15 +686,30 @@ class CwaData():
 
 
     def get_sample_values(self):
-        """Return an ndarray of (time, accel_x, accel_y, accel_z) or (time, accel_x, accel_y, accel_z, gyro_x, gyro_y, gyro_z)"""
+        """
+        Return an ndarray of (time, accel_x, accel_y, accel_z) or (time, accel_x, accel_y, accel_z, gyro_x, gyro_y, gyro_z)
+        Time is in seconds (float) since the epoch.
+        """
         return self.sample_values
 
-    def get_samples(self):
-        """Return an DataFrame for (time, accel_x, accel_y, accel_z) or (time, accel_x, accel_y, accel_z, gyro_x, gyro_y, gyro_z)"""
-        if self.samples is None:
-            self.samples = pd.DataFrame(self.sample_values, columns=self.labels)
-
-        return self.samples
+    def get_samples(self, use_datetime64=True):
+        """
+        Return an DataFrame for (time, accel_x, accel_y, accel_z) or (time, accel_x, accel_y, accel_z, gyro_x, gyro_y, gyro_z)
+        Time is in datetime64[ns]; or seconds (float) since the epoch.
+        """
+        if self.include_time and use_datetime64:
+            if self.verbose: print('Converting time...', flush=True)
+            # Samples exclude the current time (float seconds) column
+            samples = pd.DataFrame(self.sample_values[:,1:], columns=self.labels[1:])
+            # Convert the float epoch time in seconds to a datetime64 integer in nanoseconds (Pandas default)
+            time = (self.sample_values[:,0] * 1_000_000_000).astype('datetime64[ns]')
+            # Add time as first column
+            samples.insert(0, self.labels[0], time, True)
+            if self.verbose: print('...done', flush=True)
+        else:
+            # Keep time in (float) seconds
+            samples = pd.DataFrame(self.sample_values, columns=self.labels)
+        return samples
 
     def get_sample_rate(self):
         return self.data_format['frequency']

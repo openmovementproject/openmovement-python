@@ -173,9 +173,11 @@ def _parse_accel_info(wav_info):
 
     format = None
     global_range = 1
+    global_offset = 0
     if wav_info['format'] == WAVE_FORMAT_PCM and wav_info['bytes_per_channel'] == 1:
         format = 'B'    # Unsigned 8-bit integer
-        raise Exception('Unsigned data not supported')
+        global_offset = -128
+        global_range = 1 << 7
     elif wav_info['format'] == WAVE_FORMAT_PCM and wav_info['bytes_per_channel'] == 2:
         format = 'h'    # Signed 16-bit integer
         global_range = 1 << 15
@@ -196,6 +198,7 @@ def _parse_accel_info(wav_info):
         raise Exception('Unrecognized data storage format')
     info['format'] = format
     info['global_range'] = global_range
+    info['global_offset'] = global_offset
     
     # Data offset / size (bytes) directly from WAV file
     info['data_offset'] = wav_info['data_offset']
@@ -354,19 +357,19 @@ class WavData():
 
         if has_accel:
             if self.verbose: print('Sample data: scaling accel... ' + str(self.info['accel_scale']), flush=True)
-            self.sample_values[:,current_axis:current_axis+3] = self.raw_samples[:, self.info['accel_axis']:self.info['accel_axis']+3] / self.info['global_range'] * self.info['accel_scale']
+            self.sample_values[:,current_axis:current_axis+3] = (self.raw_samples[:, self.info['accel_axis']:self.info['accel_axis']+3] + self.info['global_offset']) / self.info['global_range'] * self.info['accel_scale']
             self.labels = self.labels + ['accel_x', 'accel_y', 'accel_z']
             current_axis += 3
 
         if has_gyro:
             if self.verbose: print('Sample data: scaling gyro... ' + str(self.info['gyro_scale']), flush=True)
-            self.sample_values[:,current_axis:current_axis+3] = self.raw_samples[:, self.info['gyro_axis']:self.info['gyro_axis']+3] / self.info['global_range'] * self.info['gyro_scale'] 
+            self.sample_values[:,current_axis:current_axis+3] = (self.raw_samples[:, self.info['gyro_axis']:self.info['gyro_axis']+3] + self.info['global_offset']) / self.info['global_range'] * self.info['gyro_scale'] 
             self.labels = self.labels + ['gyro_x', 'gyro_y', 'gyro_z']
             current_axis += 3
 
         if has_mag:
             if self.verbose: print('Sample data: scaling mag... ' + str(self.info['mag_scale']), flush=True)
-            self.sample_values[:,current_axis:current_axis+3] = self.raw_samples[:, self.info['mag_axis']:self.info['mag_axis']+3] / self.info['global_range'] * self.info['mag_scale']
+            self.sample_values[:,current_axis:current_axis+3] = (self.raw_samples[:, self.info['mag_axis']:self.info['mag_axis']+3] + self.info['global_offset']) / self.info['global_range'] * self.info['mag_scale']
             self.labels = self.labels + ['mag_x', 'mag_y', 'mag_z']
             current_axis += 3
 
@@ -425,15 +428,30 @@ class WavData():
 
 
     def get_sample_values(self):
-        """Return an ndarray of (time, accel_x, accel_y, accel_z) or (time, accel_x, accel_y, accel_z, gyro_x, gyro_y, gyro_z)"""
+        """
+        Return an ndarray of (time, accel_x, accel_y, accel_z) or (time, accel_x, accel_y, accel_z, gyro_x, gyro_y, gyro_z)
+        Time is in seconds (float) since the epoch.
+        """
         return self.sample_values
 
-    def get_samples(self):
-        """Return an DataFrame for (time, accel_x, accel_y, accel_z) or (time, accel_x, accel_y, accel_z, gyro_x, gyro_y, gyro_z)"""
-        if self.samples is None:
-            self.samples = pd.DataFrame(self.sample_values, columns=self.labels)
-
-        return self.samples
+    def get_samples(self, use_datetime64=True):
+        """
+        Return an DataFrame for (time, accel_x, accel_y, accel_z) or (time, accel_x, accel_y, accel_z, gyro_x, gyro_y, gyro_z)
+        Time is in datetime64[ns]; or seconds (float) since the epoch.
+        """
+        if self.include_time and use_datetime64:
+            if self.verbose: print('Converting time...', flush=True)
+            # Samples exclude the current time (float seconds) column
+            samples = pd.DataFrame(self.sample_values[:,1:], columns=self.labels[1:])
+            # Convert the float epoch time in seconds to a datetime64 integer in nanoseconds (Pandas default)
+            time = (self.sample_values[:,0] * 1_000_000_000).astype('datetime64[ns]')
+            # Add time as first column
+            samples.insert(0, self.labels[0], time, True)
+            if self.verbose: print('...done', flush=True)
+        else:
+            # Keep time in (float) seconds
+            samples = pd.DataFrame(self.sample_values, columns=self.labels)
+        return samples
 
     def get_sample_rate(self):
         return self.info['frequency']
