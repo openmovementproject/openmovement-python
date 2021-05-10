@@ -57,6 +57,7 @@
         "iloc",
         "interp",
         "isdigit",
+        "issubdtype",
         "iterrows",
         "kyildiz",
         "ldjson",

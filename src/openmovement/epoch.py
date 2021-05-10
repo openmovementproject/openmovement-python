@@ -23,10 +23,20 @@ def split_into_epochs(sample_values, epoch_time_interval, timestamps=None, relat
     if timestamps is None:
         timestamps = sample_values[:,0]
 
-    # By default, the epochs start with the first sample; otherwise use a fixed epoch (e.g. 0=wall clock time)
-    epoch_time_offset = relative_to_time
+    # Determine if timestamps are datetime64 (rather than seconds-since-epoch)
+    is_dt64 = np.issubdtype(timestamps.dtype, np.datetime64)
+
+    # If using datetime64, ensure epoch_time_interval is a np.timedelta64
+    if is_dt64 and not np.issubdtype(epoch_time_interval, np.timedelta64):
+        epoch_time_interval = np.timedelta64(epoch_time_interval, 's')
+
+    # relative_to_time: None means the epochs start with the first sample; otherwise they  use a fixed epoch in seconds (e.g. 0=wall clock time)
     if epoch_time_offset is None:
         epoch_time_offset = timestamps[0]
+    elif is_dt64:
+        epoch_time_offset = relative_to_time
+    else:
+        epoch_time_offset = np.datetime64(relative_to_time, 's')
 
     # Must use 1D timestamps
     if timestamps.ndim != 1:
