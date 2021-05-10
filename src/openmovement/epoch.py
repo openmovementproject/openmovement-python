@@ -73,10 +73,10 @@ def split_into_epochs(sample_values, epoch_time_interval, timestamps=None, relat
 
 
 
-def split_into_blocks(sample_values, epoch_size_samples):
+def _split_into_blocks_reshape_ndarray(sample_values, epoch_size_samples):
     """
     Returns a reshaped ndarray view of the given ndarray sample data (e.g. [[time,accel_x,accel_y,accel_y,*_]]) 
-    as blocks of equally-sized samples.  As the blocks must be of a fixed size, any remainder is discarded.
+    as blocks of equal count samples.  As the blocks must be of a fixed size, any remainder is discarded.
     """
     sample_count = sample_values.shape[0]
     num_axes = None
@@ -90,3 +90,33 @@ def split_into_blocks(sample_values, epoch_size_samples):
         epochs = np.reshape(sample_values[0:covered_sample_count], (num_windows, -1))
     return epochs
 
+
+def _split_into_blocks_dataframe(sample_values, epoch_size_samples):
+    num_windows = (len(sample_values) + epoch_size_samples - 1) // epoch_size_samples
+    epochs = np.array_split(sample_values, num_windows)
+    return epochs
+
+
+def _split_into_blocks_generic(sample_values, epoch_size_samples):
+    """
+    Split an array into blocks of the specified size, the last block may be smaller.
+    """
+    num_windows = (len(sample_values) + epoch_size_samples - 1) // epoch_size_samples
+    epochs = [None] * num_windows
+    for index in range(len(epochs)):
+        epochs[index] = sample_values[index * epoch_size_samples:(index + 1) * epoch_size_samples]
+    return epochs
+
+
+def split_into_blocks(sample_values, epoch_size_samples):
+    """
+    Returns a the given sample_values as blocks of epoch_size_samples.
+    If an ndarray, non-full blocks are not included.
+    """
+    if isinstance(sample_values, numpy.ndarray):
+        epochs = _split_into_blocks_reshape_ndarray(sample_values, epoch_size_samples)
+    elif isinstance(sample_values, pd.DataFrame):
+        epochs = _split_into_blocks_dataframe(sample_values, epoch_size_samples)
+    else:
+        epochs = _split_into_blocks_generic(sample_values, epoch_size_samples)
+    return epochs
