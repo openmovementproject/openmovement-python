@@ -1,9 +1,9 @@
 import os
 import sys
-from openmovement import timeseries_csv, cwa_load, calc_svm
+from openmovement import timeseries_csv, cwa_load, calc_wtv
 
-def run_svm(source_file):
-    ext = '.csvm.csv'
+def run_wtv(source_file):
+    ext = '.cwtv.csv'
 
     if os.path.splitext(source_file)[1].lower() == '.cwa':
         ext = '.cwa' + ext
@@ -12,15 +12,15 @@ def run_svm(source_file):
     else: # Only use this option for scaled triaxial values with full timestamps
         data = timeseries_csv.csv_load_pandas(source_file)
     
-    svm_calc = calc_svm.calculate_svm(data)
+    wtv_calc = calc_wtv.calculate_wtv(data)
     
     output_file = os.path.splitext(source_file)[0] + ext
     with open(output_file, 'w') as writer:
-        writer.write("Time,Mean SVM (g)\n")
-        for time, svm in svm_calc:
+        writer.write("Time,Wear time (30 mins)\n")
+        for time, wtv in wtv_calc:
             #time_dt = timeseries_csv.csv_datetime(time)
             time_string = timeseries_csv.csv_datetime_string(time)
-            line = time_string + "," + str(svm)
+            line = time_string + "," + str(int(wtv))
             writer.write(line + "\n")
 
             print(line)
@@ -41,4 +41,4 @@ if __name__ == "__main__":
         print('No input file specified.')
     else:
         for file in source_files:
-            run_svm(file)
+            run_wtv(file)
