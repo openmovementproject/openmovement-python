@@ -51,7 +51,7 @@ def csv_load_pandas(filename):
     import pandas as pd
     pd_data = pd.read_csv(
         filename, 
-        parse_dates=[0], 
+        parse_dates=[0], # parse_dates=['date_utc'], 
         infer_datetime_format=True, 
         #date_parser = lambda value: datetime.datetime.strptime(value, "%Y-%m-%d %H:%M:%S.%f").timestamp(),
         #date_parser = lambda value: np.datetime64(value, 'ms').astype('int64') / 1000,  # Seconds since epoch
@@ -204,10 +204,9 @@ class TimeseriesCsv:
 
 
 def main():
-    test_file = '../../_local/2021-04-01-123456123_XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX_ACC.csv'
-    #test_file = '../../_local/sample.csv'
+    test_file = '../../_local/sample.csv'
 
-    tscsv = TimeseriesCsv(test_file, {"time_zero": csv_time_from_filename(test_file), "global_scale": csv_scale_from_filename(test_file)})
+    tscsv = TimeseriesCsv(test_file)
     print(tscsv.header)
     for values in tscsv:
         if tscsv.line_num >= 10:

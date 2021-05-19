@@ -7,9 +7,9 @@ python -m pip install "git+https://github.com/digitalinteraction/openmovement-py
 ```
 
 
-## Wrapper for 'omconvert'
+## `omconvert` - wrapper for `omconvert` binary executable
 
-This ([omconvert.py](src/openmovement/omconvert.py)) is a Python wrapper for the [omconvert](https://github.com/digitalinteraction/omconvert) executable, which processes `.cwa` and `.omx` binary files and produce calculated outputs, such as SVM (signal vector magnitude) and WTV (wear-time validation).  It can also be used to output raw accelerometer `.csv` files (these can be very large).
+([omconvert.py](src/openmovement/omconvert.py)) is a Python wrapper for the [omconvert](https://github.com/digitalinteraction/omconvert) executable, which processes `.cwa` and `.omx` binary files and produce calculated outputs, such as SVM (signal vector magnitude) and WTV (wear-time validation).  It can also be used to output raw accelerometer `.csv` files (these can be very large).
 
 The example code, [run_omconvert.py](src/run_omconvert.py), exports the SVM and WTV files.  A basic usage example is:
 
@@ -40,10 +40,10 @@ om = omconvert.OmConvert()
 result = om.execute(source_file, options)
 ```
 
-*NOTE:* You will need the `omconvert` binary either in your `PATH`, in the current working directory, or in the same directory as the `omconvert.py` file (or, on Windows, if you have *OmGui* installed in the default location).  On Windows you can use the `bin/build-omconvert.bat` script to fetch the source and build the binary, or on macOS/Linux you can use the `bin/build-omconvert.sh` script. 
+*Note:* You will need the `omconvert` binary either in your `PATH`, in the current working directory, or in the same directory as the `omconvert.py` file (or, on Windows, if you have *OmGui* installed in the default location).  On Windows you can use the `bin/build-omconvert.bat` script to fetch the source and build the binary, or on macOS/Linux you can use the `bin/build-omconvert.sh` script. 
 
 
-## CWA Loader
+## `cwa_load` - .CWA file loader
 
 Load `.CWA` files directly into Python (requires `numpy` and `pandas`).
 
@@ -51,12 +51,34 @@ Load `.CWA` files directly into Python (requires `numpy` and `pandas`).
 from openmovement import cwa_load
 
 filename = 'CWA-DATA.CWA'
-with CwaData(filename, verbose=True, include_gyro=False, include_temperature=True) as cwa_data:
-    # (time,accel_x,accel_y,accel_z,temperature)
+with CwaData(filename, include_gyro=False, include_temperature=True) as cwa_data:
+    # As an ndarray of [time,accel_x,accel_y,accel_z,temperature]
     sample_values = cwa_data.get_sample_values()
     # As a pandas DataFrame
     samples = cwa_data.get_samples()
 ```
+
+
+## `zip_helper` - "potentially zipped" file helper
+
+Handles a "potentially zipped" file: one that may be inside a .ZIP archive but, if so, you need the extracted file on a drive and it can't be a stream from a compressed file.  For example, when you need to memory-map the file (e.g. with `cwa_load`), or use it with an external process (e.g. with `omconvert`).
+
+Offers a convenient `with` syntax:
+
+* If the file extension is not '.zip', the original filename is passed through via the `with` syntax.
+
+* Otherwise, the file is opened as a .ZIP archive, and it is searched for exactly one matching filename (by default, a single-file archive).  The matching file is extracted to a temporary location, and that location is passed through the `with` syntax as the filename to use.  At the end of the `with` block, the temporary file is automatically remove.
+
+```python
+from openmovement import zip_helper
+
+filename = 'testing.zip'
+with PotentiallyZippedFile(filename, ['*.cwa', '*.omx']) as file:
+    print('Using: ' + file)
+    pass
+```
+
+
 
 <!--
 TODO: Mention `calibrate` and `epoch`.
@@ -79,12 +101,12 @@ Note: These iteration-based versions are quite slow for large amounts of data, a
 
 * [calc_svm.py](src/openmovement/calc_svm.py) - Calculates (as an iterator) the mean *abs(SVM-1)* value for an epoch (default 60 seconds) given an iterator yielding `[time_seconds, x, y, z]`.
 
-* [run_svm.py](src/openmovement/run_svm.py) - Example showing how to run the SVM calculation from a source `.csv` file to an output `.csvm.csv` file.
+* [run_svm.py](src/run_svm.py) - Example showing how to run the SVM calculation from a source `.csv` file to an output `.csvm.csv` file.
 
 ### WTV
 
 * [calc_wtv.py](src/openmovement/calc_svm.py) - Calculates (as an iterator) the WTV (wear-time validation) value (30 minute epochs) given an iterator yielding `[time_seconds, x, y, z]`.
 
-* [run_wtv.py](src/openmovement/run_wtv.py) - Example showing how to run the WTV calculation from a source `.csv` file to an output `.cwtv.csv` file.
+* [run_wtv.py](src/run_wtv.py) - Example showing how to run the WTV calculation from a source `.csv` file to an output `.cwtv.csv` file.
 
 -->
