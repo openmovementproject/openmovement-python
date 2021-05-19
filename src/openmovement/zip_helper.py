@@ -2,6 +2,7 @@
 # Dan Jackson, 2021
 
 import os
+import sys
 import zipfile
 import fnmatch
 import tempfile
@@ -122,7 +123,7 @@ class PotentiallyZippedFile:
             if '__TEMP-' in remove_file:    # Safety precaution
                 os.remove(remove_file)
         except Exception as e:
-            eprint('WARNING: Problem removing temporary file (' + str(e) + '): ' + remove_file)
+            print('WARNING: Problem removing temporary file (' + str(e) + '): ' + remove_file, file=sys.stderr)
         
 
 # Test function
