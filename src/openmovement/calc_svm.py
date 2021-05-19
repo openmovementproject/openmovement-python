@@ -1,5 +1,5 @@
 import numpy as np
-import openmovement.epoch
+import openmovement.epoch as epoch
 
 # TODO: Add options for frequency filtering
 # def _butter_bandpass_filter(samples, sample_freq, low_freq, high_freq, order=4, method='ba'):
@@ -32,7 +32,7 @@ def calculate_svm(sample_values, epoch_time_interval=60, truncate=False, relativ
     """
 
     # Split samples into epochs
-    epochs = openmovement.epoch.split_into_epochs(sample_values, epoch_time_interval, relative_to_time=relative_to_time)
+    epochs = epoch.split_into_epochs(sample_values, epoch_time_interval, relative_to_time=relative_to_time)
 
     # Calculate each epoch
     num_epochs = len(epochs)

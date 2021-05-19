@@ -1,5 +1,6 @@
+import sys
 import numpy as np
-import epoch
+import openmovement.epoch as epoch
 
 # Constants
 WTV_EPOCH_TIME = 30 * 60    # 30 minutes
@@ -29,7 +30,7 @@ def calculate_wtv(sample_values, epoch_time_interval=WTV_EPOCH_TIME, relative_to
     """
 
     if epoch_time_interval != WTV_EPOCH_TIME:
-        eprint('WARNING: WTV algorithm is defined for %d minutes (but using %d minutes)' % (WTV_EPOCH_TIME, epoch_time_interval))
+        print('WARNING: WTV algorithm is defined for %d minutes (but using %d minutes)' % (WTV_EPOCH_TIME, epoch_time_interval), file=sys.stderr)
 
     # Split samples into epochs
     epochs = epoch.split_into_epochs(sample_values, epoch_time_interval, relative_to_time=relative_to_time)
