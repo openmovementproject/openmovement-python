@@ -274,7 +274,7 @@ def _parse_cwa_data(block, extractData=False):
             data['sampleCount'] = unpack('<H', block[28:30])[0]       # @28  +2   Number of accelerometer samples (40/80/120, depending on format, if this sector is full)
             # rawSampleData[480] = block[30:510]                      # @30  +480 Raw sample data.  Each sample is either 3x 16-bit signed values (x, y, z) or one 32-bit packed value (The bits in bytes [3][2][1][0]: eezzzzzz zzzzyyyy yyyyyyxx xxxxxxxx, e = binary exponent, lsb on right)
             
-            # range = 16 >> (rateCode >> 6)
+            # range = 16 >> (rateCode >> 6)  ## Nearest configured frequency: 3200 / (2 ^ round(log2(3200 / frequency)))
             frequency = 3200 / (1 << (15 - (rateCode & 0x0f)))
             data['frequency'] = frequency
             
@@ -337,7 +337,7 @@ def _parse_cwa_data(block, extractData=False):
             accelRange = 16
             if rateCode != 0:
                 accelRange = 16 >> (rateCode >> 6)
-            #magRange = 32768 / magUnit
+            magRange = 32768 / magUnit
             
             # Unit
             gyroUnit = 32768.0 / gyroRange
