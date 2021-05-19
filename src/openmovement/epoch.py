@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 
 def split_into_epochs(sample_values, epoch_time_interval, timestamps=None, relative_to_time=None, return_indices=False):
     """
@@ -31,7 +32,7 @@ def split_into_epochs(sample_values, epoch_time_interval, timestamps=None, relat
         epoch_time_interval = np.timedelta64(epoch_time_interval, 's')
 
     # relative_to_time: None means the epochs start with the first sample; otherwise they  use a fixed epoch in seconds (e.g. 0=wall clock time)
-    if epoch_time_offset is None:
+    if relative_to_time is None:
         epoch_time_offset = timestamps[0]
     elif is_dt64:
         epoch_time_offset = relative_to_time
@@ -113,7 +114,7 @@ def split_into_blocks(sample_values, epoch_size_samples):
     Returns a the given sample_values as blocks of epoch_size_samples.
     If an ndarray, non-full blocks are not included.
     """
-    if isinstance(sample_values, numpy.ndarray):
+    if isinstance(sample_values, np.ndarray):
         epochs = _split_into_blocks_reshape_ndarray(sample_values, epoch_size_samples)
     elif isinstance(sample_values, pd.DataFrame):
         epochs = _split_into_blocks_dataframe(sample_values, epoch_size_samples)
