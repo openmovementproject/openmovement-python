@@ -1,6 +1,6 @@
 import sys
 import numpy as np
-import openmovement.epoch as epoch
+import openmovement.process.epoch as epoch
 
 # Constants
 WTV_EPOCH_TIME = 30 * 60    # 30 minutes

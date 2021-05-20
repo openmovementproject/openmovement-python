@@ -1,6 +1,12 @@
+# --- HACK: Allow the example to run standalone as specified by a file in the repo (rather than only through the module)
+if __name__ == '__main__' and __package__ is None:
+    import sys; import os; sys.path.append(os.path.normpath(os.path.join(os.path.dirname(os.path.realpath(os.path.join(os.getcwd(), os.path.expanduser(__file__)))), '..')))
+# ---
+
 import os
 import sys
-from openmovement import timeseries_csv, cwa_load, calc_wtv
+from openmovement.load import timeseries_csv, cwa_load
+from openmovement.process import calc_wtv
 
 def run_wtv(source_file):
     ext = '.cwtv.csv'
@@ -28,11 +34,11 @@ def run_wtv(source_file):
 
 if __name__ == "__main__":
     source_files = None
-    #source_files = ['../_local/2021-04-01-123456123_XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX_ACC.csv']
-    source_files = ['../_local/sample.csv']
-    #source_files = ['../_local/sample.cwa']
-    #source_files = ['../_local/mixed_wear.csv']
-    #source_files = ['../_local/mixed_wear.cwa']
+    #source_files = ['../../_local/data/2021-04-01-123456123_XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX_ACC.csv']
+    source_files = ['../../_local/data/sample.csv']
+    #source_files = ['../../_local/data/sample.cwa']
+    #source_files = ['../../_local/data/mixed_wear.csv']
+    #source_files = ['../../_local/data/mixed_wear.cwa']
 
     if len(sys.argv) > 1:
         source_files = sys.argv[1:]

@@ -1,13 +1,13 @@
 import numpy as np
-import openmovement.epoch as epoch
+import openmovement.process.epoch as epoch
 
 # TODO: Add options for frequency filtering
-# def _butter_bandpass_filter(samples, sample_freq, low_freq, high_freq, order=4, method='ba'):
+# def _butter_bandpass_filter(samples, sample_freq, low_freq = 0.5, high_freq = 20, order=4, method='ba'):
 #     from scipy.signal import butter
 #     limit_freq = sample_freq / 2
 #     low = low_freq / limit_freq
 #     high = high_freq / limit_freq
-
+#     
 #     if method == 'ba':
 #         from scipy.signal import lfilter
 #         b, a = butter(order, [low, high], btype='band', output='ba')
@@ -18,7 +18,7 @@ import openmovement.epoch as epoch
 #         results = sosfilt(sos, samples, axis=0)
 #     else:
 #         raise Exception('Unknown filter method')
-
+#     
 #     return results
 
 

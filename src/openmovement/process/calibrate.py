@@ -9,12 +9,10 @@ Inspired by the algorithm in the GGIR package (http://cran.r-project.org/web/pac
 
 # NOTE: Not quite complete - do not use!
 
-
-import cwa_load
-
 import numpy as np
-import epoch
 from numpy.lib.stride_tricks import sliding_window_view
+import openmovement.load.cwa_load as cwa_load
+import openmovement.process.epoch as epoch
 
 NUM_AXES = 3
 AXIS_STD_THRESHOLD = 0.013

@@ -9,9 +9,9 @@ python -m pip install "git+https://github.com/digitalinteraction/openmovement-py
 
 ## `omconvert` - wrapper for `omconvert` binary executable
 
-([omconvert.py](src/openmovement/omconvert.py)) is a Python wrapper for the [omconvert](https://github.com/digitalinteraction/omconvert) executable, which processes `.cwa` and `.omx` binary files and produce calculated outputs, such as SVM (signal vector magnitude) and WTV (wear-time validation).  It can also be used to output raw accelerometer `.csv` files (these can be very large).
+([omconvert.py](src/openmovement/process/omconvert.py)) is a Python wrapper for the [omconvert](https://github.com/digitalinteraction/omconvert) executable, which processes `.cwa` and `.omx` binary files and produce calculated outputs, such as SVM (signal vector magnitude) and WTV (wear-time validation).  It can also be used to output raw accelerometer `.csv` files (these can be very large).
 
-The example code, [run_omconvert.py](src/run_omconvert.py), exports the SVM and WTV files.  A basic usage example is:
+The example code, [run_omconvert.py](src/examples/run_omconvert.py), exports the SVM and WTV files.  A basic usage example is:
 
 ```python
 import os
@@ -48,10 +48,10 @@ result = om.execute(source_file, options)
 Load `.CWA` files directly into Python (requires `numpy` and `pandas`).
 
 ```python
-from openmovement import cwa_load
+from openmovement.load import cwa_load
 
-filename = 'CWA-DATA.CWA'
-with CwaData(filename, include_gyro=False, include_temperature=True) as cwa_data:
+filename = 'cwa-data.cwa'
+with cwa_load.CwaData(filename, include_gyro=False, include_temperature=True) as cwa_data:
     # As an ndarray of [time,accel_x,accel_y,accel_z,temperature]
     sample_values = cwa_data.get_sample_values()
     # As a pandas DataFrame
@@ -67,13 +67,13 @@ Offers a convenient `with` syntax:
 
 * If the file extension is not '.zip', the original filename is passed through via the `with` syntax.
 
-* Otherwise, the file is opened as a .ZIP archive, and it is searched for exactly one matching filename (by default, a single-file archive).  The matching file is extracted to a temporary location, and that location is passed through the `with` syntax as the filename to use.  At the end of the `with` block, the temporary file is automatically remove.
+* Otherwise, the file is opened as a .ZIP archive, and it is searched for exactly one matching filename (by default, a single-file archive).  The matching file is extracted to a temporary location, and that location is passed through the `with` syntax as the filename to use.  At the end of the `with` block, the temporary file is automatically removed.
 
 ```python
-from openmovement import zip_helper
+from openmovement.load import zip_helper
 
-filename = 'testing.zip'
-with PotentiallyZippedFile(filename, ['*.cwa', '*.omx']) as file:
+filename = 'example.zip'
+with zip_helper.PotentiallyZippedFile(filename, ['*.cwa', '*.omx']) as file:
     print('Using: ' + file)
     pass
 ```
@@ -90,7 +90,7 @@ TODO: Mention `calibrate` and `epoch`.
 
 Note: This is quite slow for large amounts of data, and a `numpy`/`np.loadtxt()`, or `pandas`/`pd.readcsv()` would be faster if it was OK to load all of the data to memory.
 
-* [timeseries_csv.py](src/openmovement/timeseries_csv.py) - An iterable CSV file reader.  The first row can contain column headers.  The first column must contain a timestamp.  If the timestamp is numeric, the 'time_zero' option may be added.  If the timestamp is an ISO-ish date/time, it is parsed as a time in seconds since the 1970 epoch date.  In either case, no timezone information is known, so treat as a UTC time to correctly recover date/time of day.  All other values must be numeric (a global scaling factor may be applied to these).
+* [timeseries_csv.py](src/openmovement/load/timeseries_csv.py) - An iterable CSV file reader.  The first row can contain column headers.  The first column must contain a timestamp.  If the timestamp is numeric, the 'time_zero' option may be added.  If the timestamp is an ISO-ish date/time, it is parsed as a time in seconds since the 1970 epoch date.  In either case, no timezone information is known, so treat as a UTC time to correctly recover date/time of day.  All other values must be numeric (a global scaling factor may be applied to these).
 
 
 ## Python implementations of algorithms
@@ -99,14 +99,14 @@ Note: These iteration-based versions are quite slow for large amounts of data, a
 
 ### SVM
 
-* [calc_svm.py](src/openmovement/calc_svm.py) - Calculates (as an iterator) the mean *abs(SVM-1)* value for an epoch (default 60 seconds) given an iterator yielding `[time_seconds, x, y, z]`.
+* [calc_svm.py](src/openmovement/process/calc_svm.py) - Calculates (as an iterator) the mean *abs(SVM-1)* value for an epoch (default 60 seconds) given an iterator yielding `[time_seconds, x, y, z]`.
 
-* [run_svm.py](src/run_svm.py) - Example showing how to run the SVM calculation from a source `.csv` file to an output `.csvm.csv` file.
+* [run_svm.py](src/examples/run_svm.py) - Example showing how to run the SVM calculation from a source `.csv` file to an output `.csvm.csv` file.
 
 ### WTV
 
-* [calc_wtv.py](src/openmovement/calc_svm.py) - Calculates (as an iterator) the WTV (wear-time validation) value (30 minute epochs) given an iterator yielding `[time_seconds, x, y, z]`.
+* [calc_wtv.py](src/openmovement/process/calc_svm.py) - Calculates (as an iterator) the WTV (wear-time validation) value (30 minute epochs) given an iterator yielding `[time_seconds, x, y, z]`.
 
-* [run_wtv.py](src/run_wtv.py) - Example showing how to run the WTV calculation from a source `.csv` file to an output `.cwtv.csv` file.
+* [run_wtv.py](src/examples/run_wtv.py) - Example showing how to run the WTV calculation from a source `.csv` file to an output `.cwtv.csv` file.
 
 -->

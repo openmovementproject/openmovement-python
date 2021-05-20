@@ -1,6 +1,11 @@
+# --- HACK: Allow the example to run standalone as specified by a file in the repo (rather than only through the module)
+if __name__ == '__main__' and __package__ is None:
+    import sys; import os; sys.path.append(os.path.normpath(os.path.join(os.path.dirname(os.path.realpath(os.path.join(os.getcwd(), os.path.expanduser(__file__)))), '..')))
+# ---
+
 import os
 import sys
-import filename_info
+import util_info_from_filename
 from openmovement import cwa_load
 from openmovement.iterator import timeseries_csv_iter, calc_svm_iter
 
@@ -17,8 +22,8 @@ def run_svm(source_file, test_load_everything=False):
     else:
         # Use the CSV iterator with automatic time-offset/scaling
         row_iterator = timeseries_csv_iter.TimeseriesCsv(source_file, {
-            "time_zero": filename_info.csv_time_from_filename(source_file), 
-            "global_scale": filename_info.csv_scale_from_filename(source_file)
+            "time_zero": util_info_from_filename.csv_time_from_filename(source_file), 
+            "global_scale": util_info_from_filename.csv_scale_from_filename(source_file)
         })
     
     svm_calc = calc_svm_iter.CalcSvmIter(row_iterator, {})
@@ -43,10 +48,10 @@ def run_svm(source_file, test_load_everything=False):
 
 if __name__ == "__main__":
     source_files = None
-    #source_files = ['../_local/2021-04-01-123456123_XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX_ACC.csv']
-    #source_files = ['../_local/sample.csv']
-    source_files = ['../_local/sample.cwa']
-    #source_files = ['../_local/mixed_wear.csv']
+    #source_files = ['../../_local/data/2021-04-01-123456123_XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX_ACC.csv']
+    #source_files = ['../../_local/data/sample.csv']
+    source_files = ['../../_local/data/sample.cwa']
+    #source_files = ['../../_local/data/mixed_wear.csv']
 
     if len(sys.argv) > 1:
         source_files = sys.argv[1:]

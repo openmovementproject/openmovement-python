@@ -1,10 +1,11 @@
-# python -m pip install -e "git+https://github.com/digitalinteraction/openmovement-python.git#egg=openmovement"
+# --- HACK: Allow the example to run standalone as specified by a file in the repo (rather than only through the module)
+if __name__ == '__main__' and __package__ is None:
+    import sys; import os; sys.path.append(os.path.normpath(os.path.join(os.path.dirname(os.path.realpath(os.path.join(os.getcwd(), os.path.expanduser(__file__)))), '..')))
+# ---
 
 import sys
-#sys.path.append(".")
-
 import os
-from openmovement import omconvert
+from openmovement.process import omconvert
 
 def run_omconvert(source_file):
     options = {}
@@ -40,8 +41,8 @@ def run_omconvert(source_file):
 
 if __name__ == "__main__":
     source_files = None
-    #source_files = ['../_local/sample.cwa']
-    #source_files = ['../_local/mixed_wear.cwa']
+    #source_files = ['../../_local/data/sample.cwa']
+    #source_files = ['../../_local/data/mixed_wear.cwa']
 
     if len(sys.argv) > 1:
         source_files = sys.argv[1:]
