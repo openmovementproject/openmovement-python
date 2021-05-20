@@ -6,7 +6,7 @@ if __name__ == '__main__' and __package__ is None:
 import os
 import sys
 import util_info_from_filename
-from openmovement import cwa_load
+from openmovement.load import CwaData
 from openmovement.iterator import timeseries_csv_iter, calc_wtv_iter
 
 def run_wtv(source_file, test_load_everything=False):

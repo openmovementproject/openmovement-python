@@ -6,7 +6,7 @@ if __name__ == '__main__' and __package__ is None:
 import os
 import sys
 import util_info_from_filename
-from openmovement import cwa_load
+from openmovement.load import CwaData
 from openmovement.iterator import timeseries_csv_iter, calc_svm_iter
 
 def run_svm(source_file, test_load_everything=False):
@@ -14,7 +14,7 @@ def run_svm(source_file, test_load_everything=False):
 
     if os.path.splitext(source_file)[1].lower() == '.cwa':
         ext = '.cwa' + ext
-        data = cwa_load.CwaData(source_file, verbose=True, include_gyro=False, include_temperature=False)
+        data = CwaData(source_file, verbose=True, include_gyro=False, include_temperature=False)
         row_iterator = iter(data)
     elif test_load_everything: # (Experimental) Only use this option for scaled triaxial values with full timestamps
         data = timeseries_csv_iter.csv_load_pandas(source_file)

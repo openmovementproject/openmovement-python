@@ -5,14 +5,16 @@ if __name__ == '__main__' and __package__ is None:
 
 import os
 import sys
-from openmovement import timeseries_csv, cwa_load, calc_svm
+from openmovement.load import CwaData
+from openmovement.load import timeseries_csv
+from openmovement.process import calc_svm
 
 def run_svm(source_file):
     ext = '.csvm.csv'
 
     if os.path.splitext(source_file)[1].lower() == '.cwa':
         ext = '.cwa' + ext
-        cwa_data = cwa_load.CwaData(source_file, verbose=True, include_gyro=False, include_temperature=False)
+        cwa_data = CwaData(source_file, verbose=True, include_gyro=False, include_temperature=False)
         data = cwa_data.get_sample_values()
     else: # Only use this option for scaled triaxial values with full timestamps
         data = timeseries_csv.csv_load_pandas(source_file)

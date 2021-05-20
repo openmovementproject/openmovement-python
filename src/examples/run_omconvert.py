@@ -5,7 +5,7 @@ if __name__ == '__main__' and __package__ is None:
 
 import sys
 import os
-from openmovement.process import omconvert
+from openmovement.load import CwaData
 
 def run_omconvert(source_file):
     options = {}
@@ -32,7 +32,7 @@ def run_omconvert(source_file):
     #options['paee_filter'] = 0
     #options['paee_file'] = base_name + suffix + '.paee.csv'
 
-    om = omconvert.OmConvert()
+    om = OmConvert()
     result = om.execute(source_file, options)
 
     # for key, value in result.items():
