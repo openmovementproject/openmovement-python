@@ -26,9 +26,10 @@ def calculate_svm(sample_values, epoch_time_interval=60, truncate=False, relativ
     """
     Calculate the mean(abs(SVM-1)) value for the given sample ndarray [[time_seconds, accel_x, accel_y, accel_z]]
     
-    epoch_time_interval   -- seconds per epoch
-    relative_to_time      -- None=align to start of data, 0=align to wall-clock time
-    truncate              -- Use max(SVM-1,0) rather than abs(SVM-1)
+    :param epoch_time_interval: seconds per epoch (typically 60 seconds)
+    :param relative_to_time: None=align epochs to start of data, 0=align epochs to natural time, other=custom alignment
+    :param truncate: If true, use max(SVM-1,0) rather than abs(SVM-1)
+    :returns: ndarray of [time,svm]
     """
 
     # Split samples into epochs

@@ -1,7 +1,7 @@
 """
 Open Movement Accelerometer Calibration
 Dan Jackson, 2014-2021
-Based on a C implementation by Dan Jackson/Nuls Hammerla 2014,
+Based on a C implementation by Dan Jackson/Nils Hammerla 2014,
 Based on a Matlab implementation by Nils Hammerla 2014,
 Inspired by the algorithm in the GGIR package (http://cran.r-project.org/web/packages/GGIR/) by Vincent T van Hees, Zhou Fang, Jing Hua Zhao.
 ...as discussed in "Autocalibration of accelerometer data for free-living physical activity assessment using local gravity and temperature: an evaluation on four continents", https://dx.doi.org/10.1152%2Fjapplphysiol.00421.2014

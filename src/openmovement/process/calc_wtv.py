@@ -25,12 +25,13 @@ def calculate_wtv(sample_values, epoch_time_interval=WTV_EPOCH_TIME, relative_to
     (1 mg = 0.00981 m*s-2) for at least two out of the three axes,
     or if the value range, for at least two out of three axes, was less than 50 mg.
 
-    epoch_time_interval   -- seconds per epoch (the algorithm is defined for 30 minutes)
-    relative_to_time      -- None=align to start of data, 0=align to wall-clock time
+    :param epoch_time_interval: seconds per epoch (the algorithm is defined for 30 minutes)
+    :param relative_to_time: None=align epochs to start of data, 0=align epochs to natural time, other=custom alignment
+    :returns: ndarray of [time,worn], where worn is 0 (not worn), or 1 (worn)
     """
 
     if epoch_time_interval != WTV_EPOCH_TIME:
-        print('WARNING: WTV algorithm is defined for %d minutes (but using %d minutes)' % (WTV_EPOCH_TIME, epoch_time_interval), file=sys.stderr)
+        print('WARNING: WTV algorithm is defined for %d seconds, but currently using %d seconds' % (WTV_EPOCH_TIME, epoch_time_interval), file=sys.stderr)
 
     # Split samples into epochs
     epochs = epoch.split_into_epochs(sample_values, epoch_time_interval, relative_to_time=relative_to_time)
