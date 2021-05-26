@@ -10,17 +10,24 @@ import uuid
 
 class PotentiallyZippedFile:
     """
-    Handles a "potentially zipped" file where a file is needed on (local) disk, and can't just be a stream
-    from a compressed file -- e.g. memory-mapped files or external processes.
+    Handles a "potentially zipped" file where a file is needed on (local) disk, and can't just be a stream from a compressed file 
+    -- e.g. memory-mapped files or external processes.
     If the file extension is not '.zip', the original file is passed through via 'with' syntax.
-    Otherwise, the file is expected to be a .ZIP archive, and it is searched for a matching filename.  
-    It is an error if there is not exactly one matching filename.
-    The matching file is extracted to a temporary location, and that location is passed through 'with'.
+    Otherwise, the file is expected to be a .ZIP archive, and the 'filter' is used to find a matching inner filename.  
+    It is an error if there is not exactly one matching inner filename.
+    The matching file is extracted to a temporary location, and that location is passed through the 'with' syntax.
     At the end of the 'with' block, the temporary file is deleted.
-
-    filter -- one or more case-insensitive expressions to match the expected filename (default: the file in a single-file archive)
     """
+
     def __init__(self, source_file, filters=['*.*'], verbose=False):
+        """
+        Construct a zip helper object -- if the file is an archive, its inner file is temporarily extracted for use in a 'with' clause.
+
+        :param source_file: The potentially zipped filename -- if matching '*.zip' the archive is opened to find a matching inner file.
+        :param filter: A list (or a string is treated as a single element list) of case-insensitive 'glob' string expressions to match 
+                       the expected inner filename (default: '*.*' = a single-file archive).
+        :param verbose: Output more detailed information.
+        """
         self.source_file = source_file
         self.verbose = verbose
         self.archive_file = None
@@ -37,6 +44,7 @@ class PotentiallyZippedFile:
             return
 
         # If it ends in .ZIP, check that it is a valid archive
+        # (just to improve the error message -- it may not be a valid archive by the time it is opened below!)
         if not zipfile.is_zipfile(self.source_file):
             raise Exception('File is named .ZIP but does not seem to be a valid archive')
 
@@ -79,7 +87,7 @@ class PotentiallyZippedFile:
             # Have to modify zip_info filename to extract to a file with another name (?!)
             matching_zip_info.filename = temp_filename
             self.temp_file = os.path.join(temp_path, temp_filename)
-            # Extract
+            # Attempt to extract
             if self.verbose: print('EXTRACTING: ' + self.archive_file + ' (' + str(matching_zip_info.compress_size) + ') --> ' + self.temp_file + ' (' + str(matching_zip_info.file_size) + ')')
             zip.extract(matching_zip_info, path=temp_path)
 
@@ -104,7 +112,8 @@ class PotentiallyZippedFile:
     def close(self):
         """
         Finish using the file.
-        The file is removed if it was temporarily extracted.
+        Automatically called if using the 'with' syntax.
+        If an inner file was temporarily extracted, it is removed.
         """
         remove_file = self.temp_file
         self.temp_file = None       # Don't try to remove again

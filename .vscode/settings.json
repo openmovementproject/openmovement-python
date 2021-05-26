@@ -73,6 +73,7 @@
         "openmovement",
         "otypes",
         "readcsv",
+        "resample",
         "resampling",
         "scipy",
         "skiprows",

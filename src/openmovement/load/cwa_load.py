@@ -76,7 +76,7 @@ def _checksum(data):
     return sum
 
 def _dword_unpack(value):
-    """Unpack a DWORD-packed triaxial value"""
+    """Unpack a single DWORD-packed triaxial value"""
     # eezzzzzz zzzzyyyy yyyyyyxx xxxxxxxx
     exponent = value >> 30
     x = ((((value      ) & 0x3ff) ^ 0x0200) - 0x0200) << exponent
@@ -292,6 +292,9 @@ def _parse_cwa_data(block, extractData=False):
             data['timestampOffset'] = timestampOffset
             
             data['timestampTime'] = _timestamp_string(data['timestamp'])
+
+            # Estimate the time of the first/after-last sample (if at the configured rate)
+            data['estimatedFirstSampleTime'] = timestamp - (timestampOffset / frequency)
             
             # Maximum samples per sector
             channels = (numAxesBPS >> 4) & 0x0f
@@ -631,6 +634,18 @@ class CwaData():
 
 
     def __init__(self, filename, verbose=False, include_time=True, include_accel=True, include_gyro=True, include_mag=True, include_light=False, include_temperature=False):
+        """
+        Construct a CWA data object from a file.
+
+        :param filename: The path to the .CWA file, it is memory-mapped so may be more efficient as a local file.
+        :param verbose: Output more detailed information.
+        :param include_time: Interpolate timestamps for each row.
+        :param include_accel: Include the three axes of accelerometer data.
+        :param include_gyro: Include the three axes of gyroscope data, if they are present.
+        :param include_mag: (Not currently used) Include the three axes of magnetometer data, if they are present.
+        :param include_light: Include the light indicator ADC readings, nearest-neighbor interpolated for each row.
+        :param include_temperature: Include the internal temperature readings, nearest-neighbor interpolated for each row.
+        """
         start_time = time.time()
 
         self.verbose = verbose
@@ -687,15 +702,18 @@ class CwaData():
 
     def get_sample_values(self):
         """
-        Return an ndarray of (time, accel_x, accel_y, accel_z) or (time, accel_x, accel_y, accel_z, gyro_x, gyro_y, gyro_z)
-        Time is in seconds (float) since the epoch.
+        Get the sample values as a single ndarray.
+
+        :returns: An ndarray of (time, accel_x, accel_y, accel_z) or (time, accel_x, accel_y, accel_z, gyro_x, gyro_y, gyro_z)
+                  where 'time' is in seconds since the epoch.
         """
         return self.sample_values
 
     def get_samples(self, use_datetime64=True):
         """
         Return an DataFrame for (time, accel_x, accel_y, accel_z) or (time, accel_x, accel_y, accel_z, gyro_x, gyro_y, gyro_z)
-        Time is in datetime64[ns]; or seconds (float) since the epoch.
+
+        :param use_datetime64: (Default) time is in datetime64[ns]; otherwise in seconds since the epoch.
         """
         if self.include_time and use_datetime64:
             if self.verbose: print('Converting time...', flush=True)
@@ -707,9 +725,21 @@ class CwaData():
             samples.insert(0, self.labels[0], time, True)
             if self.verbose: print('...done', flush=True)
         else:
-            # Keep time in (float) seconds
+            # Keep time (if used) in seconds
             samples = pd.DataFrame(self.sample_values, columns=self.labels)
+
+        # Add sample metadata (start time in seconds since epoch, and configured sample frequency)
+        samples.attrs['time'] = self.get_start_time()
+        samples.attrs['fs'] = self.get_sample_rate()
         return samples
+
+    # Time of first sample (seconds since epoch)
+    def get_start_time(self):
+        if self.include_time:
+            start = self.sample_values[0,0]
+        else:
+            start = self.data_format['estimatedFirstSampleTime']
+        return start
 
     def get_sample_rate(self):
         return self.data_format['frequency']

@@ -5,6 +5,7 @@ import datetime
 from struct import *
 import numpy as np
 import pandas as pd
+import re
 
 WAVE_FORMAT_PCM = 0x0001
 WAVE_FORMAT_IEEE_FLOAT = 0x0003
@@ -382,6 +383,17 @@ class WavData():
 
 
     def __init__(self, filename, verbose=False, include_time=True, include_accel=True, include_gyro=True, include_mag=True):
+        """
+        Construct a timeseries movement data object from a multi-channel .WAV file (with metadata for channel scaling).
+
+        :param filename: The path to the multi-channel .WAV file.
+        :param verbose: Output more detailed information.
+        :param include_time: Generate timestamps for each row.
+        :param include_accel: Include the three axes of accelerometer data.
+        :param include_gyro: Include the three axes of gyroscope data, if they are present.
+        :param include_mag: (Not currently used) Include the three axes of magnetometer data, if they are present.
+        """
+
         self.verbose = verbose
         self.include_time = include_time
         self.include_accel = include_accel
@@ -426,18 +438,20 @@ class WavData():
             self.fh.close()
             self.fh = None
 
-
     def get_sample_values(self):
         """
-        Return an ndarray of (time, accel_x, accel_y, accel_z) or (time, accel_x, accel_y, accel_z, gyro_x, gyro_y, gyro_z)
-        Time is in seconds (float) since the epoch.
+        Get the sample values as a single ndarray.
+
+        :returns: An ndarray of (time, accel_x, accel_y, accel_z) or (time, accel_x, accel_y, accel_z, gyro_x, gyro_y, gyro_z)
+                  where 'time' is in seconds since the epoch.
         """
         return self.sample_values
 
     def get_samples(self, use_datetime64=True):
         """
         Return an DataFrame for (time, accel_x, accel_y, accel_z) or (time, accel_x, accel_y, accel_z, gyro_x, gyro_y, gyro_z)
-        Time is in datetime64[ns]; or seconds (float) since the epoch.
+
+        :param use_datetime64: (Default) time is in datetime64[ns]; otherwise in seconds since the epoch.
         """
         if self.include_time and use_datetime64:
             if self.verbose: print('Converting time...', flush=True)
@@ -449,9 +463,17 @@ class WavData():
             samples.insert(0, self.labels[0], time, True)
             if self.verbose: print('...done', flush=True)
         else:
-            # Keep time in (float) seconds
+            # Keep time, if used, in seconds
             samples = pd.DataFrame(self.sample_values, columns=self.labels)
+
+        # Add sample metadata (start time in seconds since epoch, and sample frequency)
+        samples.attrs['time'] = self.get_start_time()
+        samples.attrs['fs'] = self.get_sample_rate()
         return samples
+
+    # Time of first sample (seconds since epoch)
+    def get_start_time(self):
+        return self.info['time_offset']
 
     def get_sample_rate(self):
         return self.info['frequency']
