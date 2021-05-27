@@ -4,7 +4,6 @@ Dan Jackson, Open Movement, 2017-2021
 Derived from cwa_metadata.py CWA Metadata Reader by Dan Jackson, Open Movement.
 """
 
-import os
 import sys
 import time
 from datetime import datetime
