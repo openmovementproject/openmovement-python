@@ -404,9 +404,18 @@ class WavData():
         self.fh = None
         self.full_buffer = None
 
+        self.all_data_read = False
         self._read_data()
         self._parse_header()
+
+
+    # Current model interprets all of the data in one go (and releases the file)
+    def _ensure_all_data_read(self):
+        if self.all_data_read:
+            return
+        self.all_data_read = True
         self._interpret_samples()
+        self.close()
 
 
     # Nothing to do at start of 'with'
@@ -445,6 +454,7 @@ class WavData():
         :returns: An ndarray of (time, accel_x, accel_y, accel_z) or (time, accel_x, accel_y, accel_z, gyro_x, gyro_y, gyro_z)
                   where 'time' is in seconds since the epoch.
         """
+        self._ensure_all_data_read()
         return self.sample_values
 
     def get_samples(self, use_datetime64=True):
@@ -453,6 +463,7 @@ class WavData():
 
         :param use_datetime64: (Default) time is in datetime64[ns]; otherwise in seconds since the epoch.
         """
+        self._ensure_all_data_read()
         if self.include_time and use_datetime64:
             if self.verbose: print('Converting time...', flush=True)
             # Samples exclude the current time (float seconds) column
@@ -482,17 +493,16 @@ class WavData():
 
 
 def main():
-    filename = '../../_local/sample.wav'
+    filename = '../../../_local/data/sample.wav'
 
     with WavData(filename, verbose=True, include_gyro=True) as wav_data:
         sample_values = wav_data.get_sample_values()
-        print(sample_values)
         samples = wav_data.get_samples()
-        print(samples)
-        #_export(wav_data, os.path.splitext(filename)[0] + '.wav.csv')
-        print('Done')
-        
-    print('End')
+
+    print(sample_values)
+    print(samples)
+    #_export(wav_data, os.path.splitext(filename)[0] + '.wav.csv')
+    print('Done')
 
 if __name__ == "__main__":
     main()

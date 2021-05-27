@@ -660,14 +660,26 @@ class CwaData():
         self.fh = None
         self.full_buffer = None
 
+        self.all_data_read = False
         self._read_data()
         self._parse_header()
+        elapsed_time = time.time() - start_time
+        if self.verbose: print('Header done... (elapsed=' + str(elapsed_time) + ')', flush=True)
+
+
+    # Current model reads all of the data in one go (and releases the file)
+    def _ensure_all_data_read(self):
+        start_time = time.time()
+        if self.all_data_read:
+            return
+        self.all_data_read = True
         self._parse_data()
         self._find_segments()
         self._interpret_samples()
 
         elapsed_time = time.time() - start_time
-        if self.verbose: print('Done... (elapsed=' + str(elapsed_time) + ')', flush=True)
+        if self.verbose: print('Read done... (elapsed=' + str(elapsed_time) + ')', flush=True)
+        self.close()
 
 
     # Nothing to do at start of 'with'
@@ -707,6 +719,7 @@ class CwaData():
         :returns: An ndarray of (time, accel_x, accel_y, accel_z) or (time, accel_x, accel_y, accel_z, gyro_x, gyro_y, gyro_z)
                   where 'time' is in seconds since the epoch.
         """
+        self._ensure_all_data_read()
         return self.sample_values
 
     def get_samples(self, use_datetime64=True):
@@ -715,6 +728,7 @@ class CwaData():
 
         :param use_datetime64: (Default) time is in datetime64[ns]; otherwise in seconds since the epoch.
         """
+        self._ensure_all_data_read()
         if self.include_time and use_datetime64:
             if self.verbose: print('Converting time...', flush=True)
             # Samples exclude the current time (float seconds) column
@@ -754,22 +768,21 @@ def _export(cwa_data, filename):
 
 
 def main():
-    #filename = '../../_local/sample.cwa'
-    filename = '../../_local/mixed_wear.cwa'
-    #filename = '../../_local/AX6-Sample-48-Hours.cwa'
-    #filename = '../../_local/AX6-Static-8-Day.cwa'
-    #filename = '../../_local/longitudinal_data.cwa'
+    #filename = '../../../_local/data/sample.cwa'
+    filename = '../../../_local/data/mixed_wear.cwa'
+    #filename = '../../../_local/data/AX6-Sample-48-Hours.cwa'
+    #filename = '../../../_local/data/AX6-Static-8-Day.cwa'
+    #filename = '../../../_local/data/longitudinal_data.cwa'
     with CwaData(filename, verbose=True, include_gyro=False, include_temperature=True) as cwa_data:
         sample_values = cwa_data.get_sample_values()
-        print(sample_values)
         samples = cwa_data.get_samples()
-        print(samples)
-
-        #_export(cwa_data, os.path.splitext(filename)[0] + '.cwa.csv')
-
-        print('Done')
         
-    print('End')
+    print(sample_values)
+    print(samples)
+
+    #_export(cwa_data, os.path.splitext(filename)[0] + '.cwa.csv')
+
+    print('Done')
 
 if __name__ == "__main__":
     main()
