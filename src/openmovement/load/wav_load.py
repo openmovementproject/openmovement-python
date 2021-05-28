@@ -3,9 +3,12 @@
 
 import datetime
 from struct import *
+import re
+
 import numpy as np
 import pandas as pd
-import re
+
+from openmovement.load.base_data import BaseData
 
 WAVE_FORMAT_PCM = 0x0001
 WAVE_FORMAT_IEEE_FLOAT = 0x0003
@@ -299,7 +302,7 @@ def _parse_accel_info(wav_info):
     return info
 
 
-class WavData():
+class WavData(BaseData):
     """
     WAV file loader
     """
@@ -393,14 +396,13 @@ class WavData():
         :param include_gyro: Include the three axes of gyroscope data, if they are present.
         :param include_mag: (Not currently used) Include the three axes of magnetometer data, if they are present.
         """
+        super().__init__(filename, verbose)
 
-        self.verbose = verbose
         self.include_time = include_time
         self.include_accel = include_accel
         self.include_gyro = include_gyro
         self.include_mag = include_mag
 
-        self.filename = filename
         self.fh = None
         self.full_buffer = None
 
@@ -417,33 +419,16 @@ class WavData():
         self._interpret_samples()
         self.close()
 
-
-    # Nothing to do at start of 'with'
-    def __enter__(self):
-        return self
-        
-    # Close handle at end of 'with'
-    def __exit__(self, exc_type, exc_value, traceback):
-        self.close()
-    
-    # Close handle when destructed
-    def __del__(self):
-        self.close()
-
-    # Iterate
-    def __iter__(self):
-        return iter(self.sample_values)
-
     def close(self):
         """Close the underlying file.  Automatically closed in with() block or when GC'd."""
-        if self.full_buffer is not None:
+        if hasattr(self, 'full_buffer') and self.full_buffer is not None:
             # Close if a mmap()
             if hasattr(self.full_buffer, 'close'):
                 self.full_buffer.close()
             # Delete buffer (if large allocation not using mmap)
             del self.full_buffer
             self.full_buffer = None
-        if self.fh is not None:
+        if hasattr(self, 'fh') and self.fh is not None:
             self.fh.close()
             self.fh = None
 
@@ -496,7 +481,8 @@ class WavData():
 
 
 def main():
-    filename = '../../../_local/data/sample.wav'
+    filename = '../_local/data/sample.wav'
+    #filename = '../../../_local/data/sample.wav'
 
     with WavData(filename, verbose=True, include_gyro=True) as wav_data:
         sample_values = wav_data.get_sample_values()

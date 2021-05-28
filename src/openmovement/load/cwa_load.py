@@ -12,6 +12,8 @@ from struct import *
 import numpy as np
 import pandas as pd
 
+from openmovement.load.base_data import BaseData
+
 SECTOR_SIZE = 512
 EPOCH = datetime(1970, 1, 1)
 
@@ -402,7 +404,7 @@ def _parse_cwa_data(block, extractData=False):
 
 
 
-class CwaData():
+class CwaData(BaseData):
     """
     CWA file loader
     """
@@ -645,9 +647,10 @@ class CwaData():
         :param include_light: Include the light indicator ADC readings, nearest-neighbor interpolated for each row.
         :param include_temperature: Include the internal temperature readings, nearest-neighbor interpolated for each row.
         """
+        super().__init__(filename, verbose)
+
         start_time = time.time()
 
-        self.verbose = verbose
         self.include_time = include_time
         self.include_accel = include_accel
         self.include_gyro = include_gyro
@@ -655,7 +658,6 @@ class CwaData():
         self.include_light = include_light
         self.include_temperature = include_temperature
 
-        self.filename = filename
         self.fh = None
         self.full_buffer = None
 
@@ -681,32 +683,16 @@ class CwaData():
         self.close()
 
 
-    # Nothing to do at start of 'with'
-    def __enter__(self):
-        return self
-        
-    # Close handle at end of 'with'
-    def __exit__(self, exc_type, exc_value, traceback):
-        self.close()
-    
-    # Close handle when destructed
-    def __del__(self):
-        self.close()
-
-    # Iterate
-    def __iter__(self):
-        return iter(self.sample_values)
-
     def close(self):
         """Close the underlying file.  Automatically closed in with() block or when GC'd."""
-        if self.full_buffer is not None:
+        if hasattr(self, 'full_buffer') and self.full_buffer is not None:
             # Close if a mmap()
             if hasattr(self.full_buffer, 'close'):
                 self.full_buffer.close()
             # Delete buffer (if large allocation not using mmap)
             del self.full_buffer
             self.full_buffer = None
-        if self.fh is not None:
+        if hasattr(self, 'fh') and self.fh is not None:
             self.fh.close()
             self.fh = None
 
@@ -778,8 +764,10 @@ def _export(cwa_data, filename):
 
 
 def main():
+    filename = '../_local/data/mixed_wear.cwa'
+
     #filename = '../../../_local/data/sample.cwa'
-    filename = '../../../_local/data/mixed_wear.cwa'
+    #filename = '../../../_local/data/mixed_wear.cwa'
     #filename = '../../../_local/data/AX6-Sample-48-Hours.cwa'
     #filename = '../../../_local/data/AX6-Static-8-Day.cwa'
     #filename = '../../../_local/data/longitudinal_data.cwa'

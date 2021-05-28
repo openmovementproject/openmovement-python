@@ -6,6 +6,8 @@ import time
 import numpy as np
 import pandas as pd
 
+from openmovement.load.base_data import BaseData
+
 
 # Normalize the column labels (e.g. 'Time' to 'time'; 'Accel-X (g)' to 'accel_x'; 'Gyro-Z (d/s)' to 'gyro_z')
 def _normalize_label(label):
@@ -52,7 +54,7 @@ def _csv_datetime_ms_string(time):
     return time.isoformat(sep=' ',timespec='milliseconds')[0:23]
 
 
-class CsvData:
+class CsvData(BaseData):
     """
     Timeseries .CSV data.
     The first row can contain column headers.
@@ -202,16 +204,15 @@ class CsvData:
             if self.verbose: print('Frequency estimate: ' + str(self.frequency))
 
 
-    def __init__(self, filename, verbose=False, force_time=False, start_time=0, assumed_frequency=None):
+    def __init__(self, filename, verbose=False, force_time=True, start_time=0, assumed_frequency=None):
         """
         :param filename: The path to the .CSV file
         :param verbose: Output more detailed information.
-        :param force_time: Force first column to be treated as time even if it doesn't look like an absolute timestamp and doesn't have a column header similar to 'time'.
+        :param force_time: First column to be treated as time even if it doesn't look like an absolute timestamp and doesn't have a column header similar to 'time'.
         :param start_time: Seconds since the epoch to use as an initial time to use for relative numeric (rather than absolute) timestamps, or where the time is missing.
         :param assumed_frequency: Sampling frequency to assume if no timestamps are given.
         """
-        self.filename = filename
-        self.verbose = verbose
+        super().__init__(filename, verbose)
         self.force_time = force_time
         self.start_time = start_time
         self.assumed_frequency = assumed_frequency
@@ -236,33 +237,16 @@ class CsvData:
         if self.verbose: print('Read done... (elapsed=' + str(elapsed_time) + ')', flush=True)
         self.close()
 
-
-    # Nothing to do at start of 'with'
-    def __enter__(self):
-        return self
-        
-    # Close handle at end of 'with'
-    def __exit__(self, exc_type, exc_value, traceback):
-        self.close()
-    
-    # Close handle when destructed
-    def __del__(self):
-        self.close()
-
-    # Iterate
-    def __iter__(self):
-        return iter(self.sample_values)
-
     def close(self):
         """Close the underlying file.  Automatically closed in with() block or when GC'd."""
-        if self.full_buffer is not None:
+        if hasattr(self, 'full_buffer') and self.full_buffer is not None:
             # Close if a mmap()
             if hasattr(self.full_buffer, 'close'):
                 self.full_buffer.close()
             # Delete buffer (if large allocation not using mmap)
             del self.full_buffer
             self.full_buffer = None
-        if self.fh is not None:
+        if hasattr(self, 'fh') and self.fh is not None:
             self.fh.close()
             self.fh = None
 
@@ -321,7 +305,8 @@ class CsvData:
 
 
 def main():
-    filename = '../../../_local/data/sample.csv'
+    filename = '../_local/data/sample.csv'
+    #filename = '../../../_local/data/sample.csv'
     #filename = '../../../_local/data/mixed_wear.csv'
 
     with CsvData(filename, verbose=True) as csv_data:

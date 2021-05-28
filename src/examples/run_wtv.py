@@ -5,27 +5,24 @@ if __name__ == '__main__' and __package__ is None:
 
 import os
 import sys
-from openmovement.load import CwaData, timeseries_csv
+import datetime
+
+from openmovement.load import MultiData
 from openmovement.process import calc_wtv
 
 def run_wtv(source_file):
     ext = '.cwtv.csv'
 
-    if os.path.splitext(source_file)[1].lower() == '.cwa':
-        ext = '.cwa' + ext
-        cwa_data = CwaData(source_file, verbose=True, include_gyro=False, include_temperature=False)
-        data = cwa_data.get_sample_values()
-    else: # Only use this option for scaled triaxial values with full timestamps
-        data = timeseries_csv.csv_load_pandas(source_file)
+    with MultiData(source_file, verbose=True, include_gyro=False, include_temperature=False) as data:
+        samples = data.get_sample_values()
     
-    wtv_calc = calc_wtv.calculate_wtv(data)
+    wtv_calc = calc_wtv.calculate_wtv(samples)
     
     output_file = os.path.splitext(source_file)[0] + ext
     with open(output_file, 'w') as writer:
         writer.write("Time,Wear time (30 mins)\n")
         for time, wtv in wtv_calc:
-            #time_dt = timeseries_csv.csv_datetime(time)
-            time_string = timeseries_csv.csv_datetime_string(time)
+            time_string = datetime.datetime.fromtimestamp(time, tz=datetime.timezone.utc).isoformat(sep=' ')[0:19]
             line = time_string + "," + str(int(wtv))
             writer.write(line + "\n")
 
@@ -34,11 +31,11 @@ def run_wtv(source_file):
 
 if __name__ == "__main__":
     source_files = None
-    #source_files = ['../../_local/data/2021-04-01-123456123_XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX_ACC.csv']
-    source_files = ['../../_local/data/sample.csv']
-    #source_files = ['../../_local/data/sample.cwa']
-    #source_files = ['../../_local/data/mixed_wear.csv']
-    #source_files = ['../../_local/data/mixed_wear.cwa']
+    #source_files = ['../_local/data/2021-04-01-123456123_XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX_ACC.csv']
+    #source_files = ['../_local/data/sample.csv']
+    source_files = ['../_local/data/sample.cwa']
+    #source_files = ['../_local/data/mixed_wear.csv']
+    #source_files = ['../_local/data/mixed_wear.cwa']
 
     if len(sys.argv) > 1:
         source_files = sys.argv[1:]

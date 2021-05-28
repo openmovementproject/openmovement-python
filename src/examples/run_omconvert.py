@@ -5,7 +5,8 @@ if __name__ == '__main__' and __package__ is None:
 
 import sys
 import os
-from openmovement.load import CwaData
+
+from openmovement.process import OmConvert
 
 def run_omconvert(source_file):
     options = {}
