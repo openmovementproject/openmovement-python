@@ -1,3 +1,6 @@
 __pycache__
 _local
 _*.ipynb
+build
+dist
+src/*.egg-info

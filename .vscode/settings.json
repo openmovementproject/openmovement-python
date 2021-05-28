@@ -76,6 +76,7 @@
         "resample",
         "resampling",
         "scipy",
+        "sdist",
         "skiprows",
         "sosfilt",
         "splitext",
