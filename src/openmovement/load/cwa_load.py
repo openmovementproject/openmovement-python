@@ -757,6 +757,17 @@ class CwaData():
     def get_sample_rate(self):
         return self.data_format['frequency']
 
+    # The total number of samples (only an estimate if not all loaded)
+    def get_num_samples(self):
+        if self.all_data_read:
+            # From data
+            return self.sample_values.shape[0]
+        else:
+            # Estimate
+            num_data_sectors = (len(self.full_buffer) - self.data_offset) / SECTOR_SIZE
+            sample_count_estimate = num_data_sectors * self.data_format['sampleCount']
+            return sample_count_estimate
+
 
 def _export(cwa_data, filename):
     print('Exporting...')

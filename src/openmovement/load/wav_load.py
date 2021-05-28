@@ -488,6 +488,9 @@ class WavData():
 
     def get_sample_rate(self):
         return self.info['frequency']
+    
+    def get_num_samples(self):
+        return self.info['num_samples']
 
 
 
