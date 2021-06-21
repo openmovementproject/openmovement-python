@@ -70,6 +70,7 @@
         "nditer",
         "numpy",
         "omconvert",
+        "omsynth",
         "openmovement",
         "otypes",
         "readcsv",
