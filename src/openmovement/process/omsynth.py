@@ -3,22 +3,23 @@ Python wrapper for executing the omsynth binary (part of the Open Movement Proje
 
 This is intended for producing data files for testing, and is not recommended for any other purpose.
 
-Input CSV has optional header line:
+Input CSV has optional header line of either:
 
   Time,Accel-X (g), Accel-Y (g), Accel-Z (g)
+  Time,Accel-X (g), Accel-Y (g), Accel-Z (g), Gyro-X (d/s), Gyro-Y (d/s), Gyro-Z (d/s)
 
-...and data lines of:
+...and data lines of either:
 
   T,Ax,Ay,Az
+  T,Ax,Ay,Az,Gx,Gy,Gz
 
-...where T is a timestamp in the format YYYY-MM-DD hh:mm:ss.fff, Ax/Ay/Az are the accelerometer axes in units of g.
+...where T is a timestamp in the format "YYYY-MM-DD hh:mm:ss.fff", 
+Ax/Ay/Az are the accelerometer axes in units of 'g' (9.81 m/s/s), 
+Gx/Gy/Gz are the (optional) gyroscope axes in units of degrees/second.
 """
 
 import os
 import subprocess
-import tempfile
-import uuid
-import datetime
 
 class OmSynth:
     """An implementation of the analysis functions using the external binary executable 'omsynth'."""
