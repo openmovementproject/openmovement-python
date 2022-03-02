@@ -153,6 +153,7 @@ def _cwa_parse_metadata(data):
         "_h":  "Height", 
         "_w":  "Weight", 
         "_ha": "Handedness", 
+		"_sn": "Subject Notes", 
     }
     
     # CWA File has 448 bytes of metadata at offset 64
