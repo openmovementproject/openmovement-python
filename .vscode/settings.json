@@ -101,5 +101,6 @@
         "wavfile",
         "yyyyyyxx",
         "zzzzyyyy"
-    ]
+    ],
+    "cmake.configureOnOpen": false
 }

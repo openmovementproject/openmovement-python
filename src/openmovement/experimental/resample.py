@@ -11,6 +11,7 @@ def resample(sample_values, frequency=None, value_interpolation_mode=1, maximum_
     :param maximum_missing: maximum missing data to fill (None=do not fill)
     """
     raise NotImplementedError("Not implemented")
+    ## TODO: calculate GCD (divisor) of in- and out-frequency, upsample 1:P (P=outFrequency/divisor), low-pass filter at intermediate frequency (inFrequency * P), downsample Q:1 (Q=resampler->inFrequency / divisor).
     pass
 
 

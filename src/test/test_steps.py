@@ -206,30 +206,43 @@ def testSteps(sourceFile, expectedSteps):
     print('LOADING: ' + sourceFile)
     with multi_load.MultiData(sourceFile) as data:
         timedXYZ = data.get_sample_values()
-        sourceFs = data.get_sample_rate()
-        print('SOURCE-RATE: ' + str(sourceFs))
+        fs = data.get_sample_rate()
+        print('SOURCE-RATE: ' + str(fs))
 
         ## Resample timestamped data to 15 Hz for step algorithm
-        if sourceFs != requiredFs:
-            if sourceFs > 2 * requiredFs:
+        ## Implement and use openmovement.experimental.resample for better resampling
+        if fs != requiredFs:
+            if fs > 2 * requiredFs:
                 filterFreq = requiredFs / 2
                 print('FILTER: Low-pass filter, cut-off @%f Hz...' % filterFreq)
                 from openmovement.process.filter import filter
-                timedXYZ[:, 1:4] = filter(timedXYZ[:, 1:4], sourceFs, high_freq=filterFreq)
+                timedXYZ[:, 1:4] = filter(timedXYZ[:, 1:4], fs, high_freq=filterFreq)
                 print(timedXYZ)
 
             sourceCount = timedXYZ.shape[0]
-            destNum = math.floor((requiredFs * sourceCount) // sourceFs)
+            destNum = math.floor((requiredFs * sourceCount) // fs)
             indexes = np.linspace(start=0, stop=sourceCount, num=destNum, endpoint=False, dtype=int)
-            print('RESAMPLE: Nearest from %f samples @%fHz (%f s) to %f samples @%fHz (%f s)' % (sourceCount, sourceFs, sourceCount / sourceFs, destNum, requiredFs, destNum / requiredFs))
+            print('RESAMPLE: Nearest from %f samples @%fHz (%f s) to %f samples @%fHz (%f s)' % (sourceCount, fs, sourceCount / fs, destNum, requiredFs, destNum / requiredFs))
             timedXYZ = np.take(timedXYZ, indexes, axis=0)
+            fs = requiredFs
 
         rawXYZ = timedXYZ[:,1:4]
         print(rawXYZ)
 
-        print('CALCULATING...')
-        totalSteps = sum(step_counts_per_sec(rawXYZ))
+        # ? Clip to +/- 2 g as with the test data
+        g_range = None
+        #g_range = 2
+        if g_range is not None:
+            clippedXYZ = np.clip(rawXYZ, -g_range, g_range)
+        else:
+            clippedXYZ = rawXYZ
+
+        print('CALCULATING (%f Hz)...' % (fs))
+        totalSteps = sum(step_counts_per_sec(clippedXYZ, fs=fs))
         print('TOTAL: %f (expected %f)' % (totalSteps, expectedSteps))
+
+        # TODO: Return step count aggregated into timestamped epochs
+        return timedXYZ
     
 
 # Test function
@@ -254,7 +267,7 @@ def main():
 
     testDataFile = os.path.join(sourceDir, '..', '..', '_local', 'data', '610steps.cwa')
     testExpectedSteps = 610
-    testSteps(testDataFile, testExpectedSteps)
+    result = testSteps(testDataFile, testExpectedSteps)
 
 
 if __name__ == '__main__':
