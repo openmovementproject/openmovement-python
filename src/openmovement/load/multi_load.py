@@ -45,14 +45,14 @@ class MultiData(BaseData):
             ext = os.path.splitext(self.inner_filename)[1].lower()
             if ext == '.cwa':
                 self.inner_data = CwaData(self.inner_filename, verbose=self.verbose, include_time=include_time, include_accel=include_accel, include_gyro=include_gyro, include_mag=include_mag, include_light=include_light, include_temperature=include_temperature)
-            if ext == '.omx':
+            elif ext == '.omx':
                 self.inner_data = OmxData(self.inner_filename, verbose=self.verbose, include_time=include_time, include_accel=include_accel, include_gyro=include_gyro, include_mag=include_mag, include_light=include_light, include_temperature=include_temperature)
             elif ext == '.wav':
                 self.inner_data = WavData(self.inner_filename, verbose=self.verbose, include_time=include_time, include_accel=include_accel, include_gyro=include_gyro, include_mag=include_mag)
             elif ext == '.csv':
                 self.inner_data = CsvData(self.inner_filename, verbose=self.verbose, force_time=force_time, start_time=start_time, assumed_frequency=assumed_frequency)
             else:
-                raise Exception('Unhandled file type: ' + ext)
+                raise Exception('Unhandled file type: [' + ext + ']')
 
         except Exception as e:
             self.potentially_zipped_file.__exit__(None, None, None)
