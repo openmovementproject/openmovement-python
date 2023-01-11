@@ -145,11 +145,16 @@ def apply_calibration(calibration, samples, temperature):
 
 
 def main():
-    filename = '../../_local/sample.cwa'
-    #filename = '../../_local/mixed_wear.cwa'
-    #filename = '../../_local/AX6-Sample-48-Hours.cwa'
-    #filename = '../../_local/AX6-Static-8-Day.cwa'
-    #filename = '../../_local/longitudinal_data.cwa'
+    filename = '../../_local/data/sample.cwa'
+    #filename = '../../_local/data/mixed_wear.cwa'
+    #filename = '../../_local/data/AX6-Sample-48-Hours.cwa'
+    #filename = '../../_local/data/AX6-Static-8-Day.cwa'
+    #filename = '../../_local/data/longitudinal_data.cwa'
+    
+    # Data file path relative to module root/source parent (rather than CWD)
+    import os
+    filename = os.path.normpath(os.path.join(os.path.dirname(__file__), '..', filename))
+
     with cwa_load.CwaData(filename, verbose=True, include_gyro=False, include_temperature=True) as cwa_data:
         sample_values = cwa_data.get_sample_values()    # time,accel_x,accel_y,accel_z,*_,temperature
 
