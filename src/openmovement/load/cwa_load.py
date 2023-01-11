@@ -277,7 +277,10 @@ def _parse_cwa_data(block, extractData=False):
             # rawSampleData[480] = block[30:510]                      # @30  +480 Raw sample data.  Each sample is either 3x 16-bit signed values (x, y, z) or one 32-bit packed value (The bits in bytes [3][2][1][0]: eezzzzzz zzzzyyyy yyyyyyxx xxxxxxxx, e = binary exponent, lsb on right)
             
             # range = 16 >> (rateCode >> 6)  ## Nearest configured frequency: 3200 / (2 ^ round(log2(3200 / frequency)))
-            frequency = 3200 / (1 << (15 - (rateCode & 0x0f)))
+            if rateCode == 0x00:             # Very old format used timestampOffset to indicate sample rate
+                frequency = timestampOffset
+            else:
+                frequency = 3200 / (1 << (15 - (rateCode & 0x0f)))
             data['frequency'] = frequency
             
             timeFractional = 0;
