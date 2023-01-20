@@ -21,7 +21,7 @@ def run_sensors(source_file):
     with open(output_file, 'w') as writer:
         writer.write("Time,AccelX,AccelY,AccelZ,Light,Temp\n")
         for time, accel_x, accel_y, accel_z, light, temp in samples:
-            time_string = datetime.datetime.fromtimestamp(time, tz=datetime.timezone.utc).isoformat(sep=' ')[0:23]
+            time_string = datetime.datetime.fromtimestamp(time, tz=datetime.timezone.utc).isoformat(sep=' ', timespec='milliseconds')[0:23]
             line = time_string + "," + str(accel_x) + "," + str(accel_y) + "," + str(accel_z) + "," + str(light) + "," + str(temp)
             writer.write(line + "\n")
 

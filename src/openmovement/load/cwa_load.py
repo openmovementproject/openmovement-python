@@ -504,14 +504,14 @@ class CwaData(BaseData):
 
         # Check we have fractional timestamps
         if self.data_format['deviceFractional'] & 0x8000:
-            if self.verbose: print('Adjusting timestamps for fractional...', flush=True)
             # Need to undo backwards-compatible shim by calculating how many whole samples the fractional part of timestamp accounts for.
             int_frequency = int(self.data_format['frequency'])                          # Configured rate
+            if self.verbose: print('Adjusting timestamps for fractional (@' + str(int_frequency) + ' Hz)...', flush=True)
             time_fractional = (self.df['device_fractional'] & 0x7fff) * 2               # Use bottom 15-bits as a 16-bit fractional time
             self.df['timestamp_offset'] += (time_fractional * int_frequency) // 65536   # Undo the backwards-compatible shift (as we have a true fractional)
 
             # Add fractional time to timestamp
-            self.df['timestamp'] += time_fractional / 65536
+            self.df['timestamp'] += time_fractional / 65536.0
         else:
             # Old file, no fractional - adjust timestamp to float anyway for consistency
             self.df['timestamp'] += 0.0
@@ -592,6 +592,10 @@ class CwaData(BaseData):
             # Unpack the timestamps, adjust timestamp offset, add fractional
             self._parse_times()
             if self.verbose: print('Timestamp interpolate...', flush=True)
+            
+            #with np.printoptions(threshold=np.inf):
+            #    print(np.array2string(self.df['timestamp_index'].values, separator='\n'), flush=True)
+
             # Interpolate timestamps (NOTE: np.interp() does not extrapolate to the few samples before/after first/last timestamp)
             self.sample_values[:,current_axis] = np.interp(np.arange(0, self.df.shape[0] * self.data_format['sampleCount']), self.df['timestamp_index'], self.df['timestamp'])
             self.labels = self.labels + ['time']
