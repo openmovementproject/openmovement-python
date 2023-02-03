@@ -509,19 +509,11 @@ class CwaData(BaseData):
             if self.verbose: print('Adjusting timestamps for fractional (@' + str(int_frequency) + ' Hz)...', flush=True)
             time_fractional = (self.df['device_fractional'] & 0x7fff) * 2               # Use bottom 15-bits as a 16-bit fractional time
             undo_adjust = (time_fractional.astype(np.int32) * int_frequency) // 65536   # Undo the backwards-compatible shift (as we have a true fractional)
-            if self.diagnostic:
-                print('DIAGNOSTIC: time_fractional sectors = \n' + str(time_fractional[0:10]), flush=True)
-                print('DIAGNOSTIC: time_fractional as float sectors = \n' + str((time_fractional / 65536.0)[0:10]), flush=True)
-                print('DIAGNOSTIC: pre-adjust timestamp_offset sectors = \n' + str(self.df['timestamp_offset'][0:10]), flush=True)
-                print('DIAGNOSTIC: adjust sectors = \n' + str(undo_adjust[0:10]), flush=True)
             self.df['timestamp_offset'] += undo_adjust
-            if self.diagnostic:
-                print('DIAGNOSTIC: post-adjust (@' + str(int_frequency) + ' Hz) timestamp_offset sectors = \n' + str(self.df['timestamp_offset'][0:10]), flush=True)
 
             # Add fractional time to timestamp
             self.df['timestamp'] += time_fractional / 65536.0
         else:
-            if self.diagnostic: print('DIAGNOSTIC: Old file without fractional time...', flush=True)
             # Old file, no fractional - adjust timestamp to float anyway for consistency
             self.df['timestamp'] += 0.0
 
