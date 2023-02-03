@@ -9,17 +9,17 @@ import os
 import sys
 import datetime
 
-from openmovement.load import MultiData
+from openmovement.load import CwaData
 
 def run_timestamps(source_file):
     ext = '.timestamps.csv'
 
-    with MultiData(source_file, verbose=True, include_gyro=False, include_light=True, include_temperature=True) as data:
+    with CwaData(source_file, verbose=False, include_gyro=False, include_light=True, include_temperature=True, diagnostic=True) as data:
         samples = data.get_sample_values()
     
     #print(samples)
 
-    limit_index = 1000
+    limit_index = 0
     delta_threshold = 0.1
     index = 0
     previous_time = 0
@@ -31,7 +31,7 @@ def run_timestamps(source_file):
     with open(output_file, 'w') as writer:
         writer.write("Index,Time,Delta\n")
         for time, _, _, _, _, _ in samples:
-            if index >= limit_index:
+            if limit_index and index >= limit_index:
                 break
             if previous_time == 0:
                 delta = 0

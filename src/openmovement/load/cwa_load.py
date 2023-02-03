@@ -508,11 +508,20 @@ class CwaData(BaseData):
             int_frequency = int(self.data_format['frequency'])                          # Configured rate
             if self.verbose: print('Adjusting timestamps for fractional (@' + str(int_frequency) + ' Hz)...', flush=True)
             time_fractional = (self.df['device_fractional'] & 0x7fff) * 2               # Use bottom 15-bits as a 16-bit fractional time
-            self.df['timestamp_offset'] += (time_fractional * int_frequency) // 65536   # Undo the backwards-compatible shift (as we have a true fractional)
+            undo_adjust = (time_fractional.astype(np.int32) * int_frequency) // 65536   # Undo the backwards-compatible shift (as we have a true fractional)
+            if self.diagnostic:
+                print('DIAGNOSTIC: time_fractional sectors = \n' + str(time_fractional[0:10]), flush=True)
+                print('DIAGNOSTIC: time_fractional as float sectors = \n' + str((time_fractional / 65536.0)[0:10]), flush=True)
+                print('DIAGNOSTIC: pre-adjust timestamp_offset sectors = \n' + str(self.df['timestamp_offset'][0:10]), flush=True)
+                print('DIAGNOSTIC: adjust sectors = \n' + str(undo_adjust[0:10]), flush=True)
+            self.df['timestamp_offset'] += undo_adjust
+            if self.diagnostic:
+                print('DIAGNOSTIC: post-adjust (@' + str(int_frequency) + ' Hz) timestamp_offset sectors = \n' + str(self.df['timestamp_offset'][0:10]), flush=True)
 
             # Add fractional time to timestamp
             self.df['timestamp'] += time_fractional / 65536.0
         else:
+            if self.diagnostic: print('DIAGNOSTIC: Old file without fractional time...', flush=True)
             # Old file, no fractional - adjust timestamp to float anyway for consistency
             self.df['timestamp'] += 0.0
 
@@ -596,7 +605,18 @@ class CwaData(BaseData):
             #with np.printoptions(threshold=np.inf):
             #    print(np.array2string(self.df['timestamp_index'].values, separator='\n'), flush=True)
 
-            # Interpolate timestamps (NOTE: np.interp() does not extrapolate to the few samples before/after first/last timestamp)
+            # Interpolate timestamps
+            # np.interp() does not extrapolate to the few samples before/after first/last timestamp
+            # so, slight hack, if needed, extrapolate the first timestamp back to 0
+            if len(self.df['timestamp_index']) > 1 and self.df['timestamp_index'][0] > 0:
+                deltaIndex = self.df['timestamp_index'][1] - self.df['timestamp_index'][0]
+                if deltaIndex > 0:
+                    if self.verbose: print('Timestamp interpolate... extrapolate to start', flush=True)
+                    deltaTime = self.df['timestamp'][1] - self.df['timestamp'][0]
+                    deltaRate = deltaTime / deltaIndex
+                    self.df['timestamp'][0] -= deltaRate * self.df['timestamp_index'][0]
+                    self.df['timestamp_index'][0] = 0
+
             self.sample_values[:,current_axis] = np.interp(np.arange(0, self.df.shape[0] * self.data_format['sampleCount']), self.df['timestamp_index'], self.df['timestamp'])
             self.labels = self.labels + ['time']
             current_axis += 1
@@ -642,7 +662,7 @@ class CwaData(BaseData):
 
 
 
-    def __init__(self, filename, verbose=False, include_time=True, include_accel=True, include_gyro=True, include_mag=True, include_light=False, include_temperature=False):
+    def __init__(self, filename, verbose=False, include_time=True, include_accel=True, include_gyro=True, include_mag=True, include_light=False, include_temperature=False, diagnostic=False):
         """
         Construct a CWA data object from a file.
 
@@ -654,8 +674,11 @@ class CwaData(BaseData):
         :param include_mag: (Not currently used) Include the three axes of magnetometer data, if they are present.
         :param include_light: Include the light indicator ADC readings, nearest-neighbor interpolated for each row.
         :param include_temperature: Include the internal temperature readings, nearest-neighbor interpolated for each row.
+        :param diagnostic: (Internal use) Output diagnostic-level information.
         """
         super().__init__(filename, verbose)
+        self.diagnostic = diagnostic
+        #if self.diagnostic: print('Diagnostic level...', flush=True)
 
         start_time = time.time()
 
