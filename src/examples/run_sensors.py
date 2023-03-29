@@ -17,6 +17,7 @@ def run_sensors(source_file):
         samples = data.get_sample_values()
    
     #print(samples)
+    output_lines = 0
 
     output_file = os.path.splitext(source_file)[0] + ext
     with open(output_file, 'w') as writer:
@@ -26,14 +27,18 @@ def run_sensors(source_file):
                 time_string = datetime.datetime.fromtimestamp(time, tz=datetime.timezone.utc).isoformat(sep=' ', timespec='milliseconds')[0:23]
                 line = time_string + "," + str(accel_x) + "," + str(accel_y) + "," + str(accel_z) + "," + str(gyro_x) + "," + str(gyro_y) + "," + str(gyro_z) + "," + str(light) + "," + str(temp)
                 writer.write(line + "\n")
-                print(line)
+                #print(line)
+                output_lines += 1
         else:
             writer.write("Time,AccelX,AccelY,AccelZ,Light,Temp\n")
             for time, accel_x, accel_y, accel_z, light, temp in samples:
                 time_string = datetime.datetime.fromtimestamp(time, tz=datetime.timezone.utc).isoformat(sep=' ', timespec='milliseconds')[0:23]
                 line = time_string + "," + str(accel_x) + "," + str(accel_y) + "," + str(accel_z) + "," + str(light) + "," + str(temp)
                 writer.write(line + "\n")
-                print(line)
+                #print(line)
+                output_lines += 1
+    
+    print("Wrote " + str(output_lines) + " lines to " + output_file)
 
 
 if __name__ == "__main__":

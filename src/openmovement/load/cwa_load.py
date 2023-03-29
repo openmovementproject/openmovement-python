@@ -606,8 +606,10 @@ class CwaData(BaseData):
                     if self.verbose: print('Timestamp interpolate... extrapolate to start', flush=True)
                     deltaTime = self.df['timestamp'][1] - self.df['timestamp'][0]
                     deltaRate = deltaTime / deltaIndex
-                    self.df['timestamp'][0] -= deltaRate * self.df['timestamp_index'][0]
-                    self.df['timestamp_index'][0] = 0
+                    #self.df['timestamp'][0] -= deltaRate * self.df['timestamp_index'][0]
+                    self.df.loc[0, 'timestamp'] -= deltaRate * self.df['timestamp_index'][0]
+                    #self.df['timestamp_index'][0] = 0
+                    self.df.loc[0, 'timestamp_index'] = 0
 
             self.sample_values[:,current_axis] = np.interp(np.arange(0, self.df.shape[0] * self.data_format['sampleCount']), self.df['timestamp_index'], self.df['timestamp'])
             self.labels = self.labels + ['time']
