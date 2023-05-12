@@ -8,7 +8,7 @@ def filter(samples, sample_freq=None, low_freq=None, high_freq=None, order=4, ty
 
     # Source sample frequency
     if sample_freq is None:
-        sample_freq = sample_freq.attrs['fs']
+        sample_freq = samples.attrs['fs']
 
     limit_freq = sample_freq / 2
 
