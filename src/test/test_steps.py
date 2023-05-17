@@ -169,9 +169,11 @@ def testEnsureSampleData(csvDataFile, rdsDataFile = None, rdsSourceUrl = None, s
 
     # If .csv file doesn't exist yet, but an .rds source file is given, convert it from the .rds source
     if not os.path.isfile(csvDataFile) and rdsDataFile is not None:
+        print('NOTE: CSV file does not yet exist (but an .rds source data file is known): ' + csvDataFile)
 
         # If .rds file doesn't exist yet, but a URL is given, download it from the source URL
         if not os.path.isfile(rdsDataFile) and rdsSourceUrl is not None:
+            print('NOTE: .rds source data file not found (but a URL is known): ' + rdsDataFile)
 
             # Download the .rds data
             print('DOWNLOADING: ' + rdsSourceUrl)
@@ -185,8 +187,12 @@ def testEnsureSampleData(csvDataFile, rdsDataFile = None, rdsSourceUrl = None, s
 
         # Read the .rds file
         print('READING: ' + rdsDataFile)
-        import pyreadr
-        rawXYZ = pyreadr.read_r(rdsDataFile)[None].values
+        try:
+            import pyreadr
+            rawXYZ = pyreadr.read_r(rdsDataFile)[None].values
+        except ImportError:
+            print('ERROR: pyreadr not installed -- cannot read .rds file')
+            exit(1)
 
         # Generate timestamps
         time = np.arange(rawXYZ.shape[0]) / sourceFs
