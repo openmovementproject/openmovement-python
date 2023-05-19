@@ -7,7 +7,7 @@ from openmovement.process.filter import filter
 
 def resample_fixed(sample_values, inFrequency=None, outFrequency=None, interpolation_mode='linear'):
     """
-    Resample the a fixed-rate ndarray data (e.g. [[accel_x,accel_y,accel_y,*_]]) to the specified frequency.
+    Resample a fixed-rate ndarray data (e.g. [[accel_x,accel_y,accel_y,*_]]) to the specified frequency.
 
     :param sample_values: (multi-axis) fixed rate data to resample
     :param inFrequency: input data frequency (the nominal rate from sample_values.attrs['fs'] will be used, if available)
@@ -88,12 +88,14 @@ def resample_fixed(sample_values, inFrequency=None, outFrequency=None, interpola
 
 def resample_time(sample_values, frequency=None, interpolation_mode='nearest', maximum_missing=7*24*60*60):
     """
-    Resample the given ndarray data (e.g. [[time,accel_x,accel_y,accel_y,*_]]) to the fixed frequency specified, 
-    based on the time column, interpolating the values as specified.
+    Resample the given ndarray data (e.g. [[time,accel_x,accel_y,accel_y,*_]]) to be at the fixed frequency specified, 
+      based on the time column, interpolating the values as required.
 
-    :param frequency: fixed frequency required (by default, the configured rate from sample_values.attrs['fs'] will be used, if available)
+    Fails if time is not monotonically increasing.
+
+    :param frequency: fixed frequency required (by default, the configured sample rate from sample_values.attrs['fs'] will be used, if available)
     :param interpolation_mode: 'nearest', 'linear', 'cubic', 'quadratic', etc.
-    :param maximum_missing: maximum missing data to fill as empty
+    :param maximum_missing: maximum missing data (seconds) to fill as empty, fails) if exceeded.
     """
 
     # Not implemented
