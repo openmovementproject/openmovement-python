@@ -86,16 +86,16 @@ def resample_fixed(sample_values, inFrequency=None, outFrequency=None, interpola
 
 
 
-def resample_time(sample_values, frequency=None, interpolation_mode='nearest', maximum_missing=7*24*60*60):
+def resample_time(sample_values, frequency=None, interpolation_mode='nearest', earliest_time=None, latest_time=None, maximum_missing=7*24*60*60):
     """
     Resample the given ndarray data (e.g. [[time,accel_x,accel_y,accel_y,*_]]) to be at the fixed frequency specified, 
       based on the time column, interpolating the values as required.
-
-    Fails if time is not monotonically increasing.
+      
+    Returns chunks of data separated by gaps exceeding the maximum_missing seconds, or where time is not monotonically increasing.
 
     :param frequency: fixed frequency required (by default, the configured sample rate from sample_values.attrs['fs'] will be used, if available)
     :param interpolation_mode: 'nearest', 'linear', 'cubic', 'quadratic', etc.
-    :param maximum_missing: maximum missing data (seconds) to fill as empty, fails) if exceeded.
+    :param maximum_missing: maximum missing data (seconds) to fill as empty
     """
 
     # Not implemented
