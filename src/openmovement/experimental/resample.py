@@ -3,9 +3,11 @@ import numpy as np
 import pandas as pd
 import scipy
 
+from openmovement.process.filter import filter
+
 def resample_fixed(sample_values, inFrequency=None, outFrequency=None, interpolation_mode='linear'):
     """
-    Resample the given fixed-rate ndarray data (e.g. [[accel_x,accel_y,accel_y,*_]]) to the specified frequency.
+    Resample the a fixed-rate ndarray data (e.g. [[accel_x,accel_y,accel_y,*_]]) to the specified frequency.
 
     :param sample_values: (multi-axis) fixed rate data to resample
     :param inFrequency: input data frequency (the nominal rate from sample_values.attrs['fs'] will be used, if available)
@@ -63,9 +65,8 @@ def resample_fixed(sample_values, inFrequency=None, outFrequency=None, interpola
     # Low-pass filter
     if lowPass > 0:
         print('RESAMPLE: Low-pass filter at %d Hz (intermediate at %d Hz, output at %d Hz)' % (lowPass, intermediateFrequency, outFrequency))
-        # ...
-        print('WARNING: Low-pass filter not yet implemented!')
-        #print(data)
+        data = filter(data, sample_freq=intermediateFrequency, low_freq=None, high_freq=lowPass)    # order=4, type='butter', method='ba'
+        print(data)
     else:
         print('RESAMPLE: Low-pass filter not required (output frequency is >= input frequency)')
 
@@ -85,14 +86,14 @@ def resample_fixed(sample_values, inFrequency=None, outFrequency=None, interpola
 
 
 
-def resample_time(sample_values, outFrequency=None, interpolation_mode='linear', maximum_missing=7*24*60*60):
+def resample_time(sample_values, frequency=None, interpolation_mode='nearest', maximum_missing=7*24*60*60):
     """
-    Resample the given ndarray data (e.g. [[time,accel_x,accel_y,accel_y,*_]])
-    ...to the fixed frequency specified, based on the time column, interpolating the values as specified.
+    Resample the given ndarray data (e.g. [[time,accel_x,accel_y,accel_y,*_]]) to the fixed frequency specified, 
+    based on the time column, interpolating the values as specified.
 
     :param frequency: fixed frequency required (by default, the configured rate from sample_values.attrs['fs'] will be used, if available)
     :param interpolation_mode: 'nearest', 'linear', 'cubic', 'quadratic', etc.
-    :param maximum_missing: maximum missing data to fill (None=do not fill)
+    :param maximum_missing: maximum missing data to fill as empty
     """
 
     # Not implemented
