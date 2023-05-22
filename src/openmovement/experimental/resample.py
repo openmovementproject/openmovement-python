@@ -17,9 +17,14 @@ def resample_fixed(sample_values, in_frequency=None, out_frequency=None, interpo
 
     # Defaults
     if in_frequency is None:
-        in_frequency = sample_values.attrs['fs']
+        if hasattr(sample_values, 'attrs') and 'fs' in sample_values.attrs:
+            in_frequency = sample_values.attrs['fs']
     if out_frequency is None:
         out_frequency = in_frequency
+
+    # Check valid frequencies
+    if in_frequency is None or out_frequency is None:
+        raise Exception("RESAMPLE: Invalid input/output frequency")
 
     # Calculate
     divisor = math.gcd(in_frequency, out_frequency)
@@ -86,49 +91,70 @@ def resample_fixed(sample_values, in_frequency=None, out_frequency=None, interpo
 
 
 
-def resample_time(sample_values, frequency=None, interpolation_mode='nearest', start_time=None, end_time=None, maximum_missing=7*24*60*60):
+def resample_time(samples, frequency=None, interpolation_mode='nearest', start_time=None, end_time=None, maximum_missing=7*24*60*60):
     """
     Resample the given ndarray data (e.g. [[time,accel_x,accel_y,accel_y,*_]]) to be at the fixed frequency specified, 
-      based on the time column, interpolating the values as required.
+      based on the time column, interpolating the sample values as required.
       
     TODO: Returns chunks of data separated by gaps exceeding the maximum_missing seconds, or where time is not monotonically increasing.
 
-    :param frequency: fixed frequency required (by default, the configured sample rate from sample_values.attrs['fs'] will be used, if available)
+    :param samples: timestamped samples (e.g. [[time,accel_x,accel_y,accel_y,*_]])
+    :param frequency: fixed frequency required, or None to attempt to detect the input frequency, or a list of allowed frequencies to find the nearest match.
     :param interpolation_mode: 'nearest', 'linear', 'cubic', 'quadratic', etc.
     :param maximum_missing: TODO: maximum missing data (seconds) to fill as empty
     """
 
     # Defaults
     if frequency is None:
-        frequency = sample_values.attrs['fs']
-
-    # TODO: Detect chunks of data separated by gaps exceeding the maximum_missing seconds, or where time is not monotonically increasing.
+        if hasattr(samples, 'attrs') and 'fs' in samples.attrs:
+            frequency = samples.attrs['fs']
 
     # Determine start/end times
     if start_time is None:
-        start_time = sample_values[0,0]
+        start_time = samples[0,0]
     if end_time is None:
-        end_time = sample_values[-1,0]
+        end_time = samples[-1,0]
     
-    # Number of samples required
+    # Estimate sample frequency
+    if len(samples) > 1:
+        frequency_estimate = (len(samples) - 1) / (end_time - start_time)
+    else:
+        frequency_estimate = 0
+    # Snap estimate to allowed values
+    if hasattr(frequency, "__len__"):
+        frequency_estimate = min(frequency, key=lambda freq : abs(freq - frequency_estimate))
+        frequency = None
+    # Use estimate if no frequency specified
+    if frequency is None:
+        frequency = frequency_estimate
+
+    # Check valid frequencies
+    if frequency is None:
+        raise Exception("RESAMPLE: Invalid output frequency")
+    
+    # Number of output samples required
     if end_time == start_time:
         sample_count = 1
     elif end_time > start_time:
         sample_count = math.ceil((end_time - start_time) * frequency) + 1
     else:
         sample_count = 0
-    
-    print("RESAMPLE: %d incoming samples from times %d-%d to %d outgoing samples at %d Hz" % (len(sample_values), start_time, end_time, sample_count, frequency))
 
-    in_timestamps = sample_values[:,0]
+    # TODO: Detect chunks of data separated by gaps exceeding the maximum_missing seconds, or where time is not monotonically increasing.
+    
+    print("RESAMPLE: %d incoming samples from times %d-%d to %d outgoing samples at %d Hz" % (len(samples), start_time, end_time, sample_count, frequency))
+
+    in_timestamps = samples[:,0]
     out_timestamps = start_time + np.arange(0, sample_count) / frequency
 
-    num_axes = sample_values.shape[1] - 1
+    num_axes = samples.shape[1] - 1
     resampled_data = np.empty([sample_count, num_axes + 1])
 
     resampled_data[:,0] = out_timestamps
     for axis in range(1, num_axes + 1):
-        resampled_data[:,axis] = scipy.interpolate.interp1d(in_timestamps, sample_values[:,axis])(out_timestamps)
+        resampled_data[:,axis] = scipy.interpolate.interp1d(in_timestamps, samples[:,axis], kind=interpolation_mode)(out_timestamps)
+
+    #samples.attrs['fs'] = frequency
 
     return resampled_data
 
@@ -164,5 +190,5 @@ if __name__ == "__main__":
             [10.8,108,208,308],
             [10.9,109,209,309],
             [11.0,110,210,310],
-        ]), 20)
+        ]))
     print(data)
