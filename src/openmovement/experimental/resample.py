@@ -17,8 +17,10 @@ def resample_fixed(sample_values, in_frequency=None, out_frequency=None, interpo
 
     # Defaults
     if in_frequency is None:
-        if hasattr(sample_values, 'attrs') and 'fs' in sample_values.attrs:
-            in_frequency = sample_values.attrs['fs']
+        if hasattr(data, 'dtype') and hasattr(data.dtype, 'metadata') and data.dtype.metadata != None and 'fs' in data.dtype.metadata:
+            in_frequency = data.dtype.metadata['fs']
+        elif hasattr(data, 'attrs') and 'fs' in data.attrs:
+            in_frequency = data.attrs['fs']
     if out_frequency is None:
         out_frequency = in_frequency
 
@@ -106,13 +108,15 @@ def resample_time(samples, frequency=None, interpolation_mode='nearest', start_t
 
     # Defaults
     if frequency is None:
-        if hasattr(samples, 'attrs') and 'fs' in samples.attrs:
+        if hasattr(samples, 'dtype') and hasattr(samples.dtype, 'metadata') and samples.dtype.metadata != None and 'fs' in samples.dtype.metadata:
+            frequency = samples.dtype.metadata['fs']
+        elif hasattr(samples, 'attrs') and 'fs' in samples.attrs:
             frequency = samples.attrs['fs']
 
     # Determine start/end times
-    if start_time is None:
+    if start_time is None and len(samples) > 0:
         start_time = samples[0,0]
-    if end_time is None:
+    if end_time is None and len(samples) > 0:
         end_time = samples[-1,0]
     
     # Estimate sample frequency
@@ -148,7 +152,9 @@ def resample_time(samples, frequency=None, interpolation_mode='nearest', start_t
     out_timestamps = start_time + np.arange(0, sample_count) / frequency
 
     num_axes = samples.shape[1] - 1
-    resampled_data = np.empty([sample_count, num_axes + 1])
+
+    #rate_type = np.dtype(float, metadata={"fs": frequency})
+    resampled_data = np.empty([sample_count, num_axes + 1]) # dtype=rate_type
 
     resampled_data[:,0] = out_timestamps
     for axis in range(1, num_axes + 1):
