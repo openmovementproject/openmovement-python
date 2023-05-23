@@ -5,15 +5,26 @@ import scipy
 
 from openmovement.process.filter import filter
 
-def resample_fixed(sample_values, in_frequency=None, out_frequency=None, interpolation_mode='linear'):
+def resample_fixed(sample_values, use_time=None, in_frequency=None, out_frequency=None, interpolation_mode='linear'):
     """
-    Resample a fixed-rate ndarray data (e.g. [[accel_x,accel_y,accel_y,*_]]) to the specified frequency.
+    Resample a fixed-rate ndarray data to the specified frequency.
+
+    The input can contain time (e.g. [[time,accel_x,accel_y,accel_y,*_]]) or not (e.g. [[accel_x,accel_y,accel_y,*_]]),
+    based on the `use_time` value:
+    * True - input includes time as an initial column, and output also includes a time column.
+    * False - input includes time as an initial column, but this is discarded and output has no time column.
+    * None - input does not include time, and output also does not include a time.
+    * 0 or other value - output includes an initial time column and starts at the specified time (seconds).
 
     :param sample_values: (multi-axis) fixed rate data to resample
+    :param use_time: True/False/None/0 - see above for details
     :param in_frequency: input data frequency (the nominal rate from sample_values.attrs['fs'] will be used, if available)
     :param out_frequency: output frequency required
     :param interpolation_mode: 'nearest', 'linear', 'cubic', 'quadratic', etc.
     """
+
+    if use_time is None:
+        raise NotImplementedError("RESAMPLE: use_time is expected to be None as input or output time columns are not yet supported")
 
     # Defaults
     if in_frequency is None:
@@ -23,6 +34,8 @@ def resample_fixed(sample_values, in_frequency=None, out_frequency=None, interpo
             in_frequency = data.attrs['fs']
     if out_frequency is None:
         out_frequency = in_frequency
+
+    # TODO: If in_frequency is not specified, but time is included in the input data, estimate the frequency.
 
     # Check valid frequencies
     if in_frequency is None or out_frequency is None:
@@ -93,7 +106,7 @@ def resample_fixed(sample_values, in_frequency=None, out_frequency=None, interpo
 
 
 
-def resample_time(samples, frequency=None, interpolation_mode='nearest', start_time=None, end_time=None, maximum_missing=7*24*60*60):
+def resample_variable(samples, frequency=None, interpolation_mode='nearest', start_time=None, end_time=None, maximum_missing=7*24*60*60):
     """
     Resample the given ndarray data (e.g. [[time,accel_x,accel_y,accel_y,*_]]) to be at the fixed frequency specified, 
       based on the time column, interpolating the sample values as required.
@@ -169,7 +182,7 @@ if __name__ == "__main__":
     # data = resample_fixed(np.array([100,101,102,103,104,105,106,107,108,109,110]), 100, 30)
     # print(data)
 
-    # data = resample_fixed(np.array([
+    # data = resample_variable(np.array([
     #         [100,200,300],
     #         [101,201,301],
     #         [102,202,302],
@@ -181,10 +194,10 @@ if __name__ == "__main__":
     #         [108,208,308],
     #         [109,209,309],
     #         [110,210,310],
-    #     ]), 100, 30)
+    #     ]), 0, 100, 30)
     # print(data)
 
-    data = resample_time(np.array([
+    data = resample_variable(np.array([
             [10.0,100,200,300],
             [10.1,101,201,301],
             [10.2,102,202,302],
