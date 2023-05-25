@@ -2,17 +2,19 @@
 
 This repository contains the Python code for the [Open Movement](https://openmovement.dev) project.
 
+Install the current build from [the repository](https://github.com/digitalinteraction/openmovement-python/):
+
+```bash
+python -m pip install "git+https://github.com/digitalinteraction/openmovement-python.git#egg=openmovement"
+```
+
+<!--
 Install the current version on [PyPI](https://pypi.org/project/openmovement/):
 
 ```bash
 python -m pip install openmovement
 ```
-
-...or the current build on [the repository](https://github.com/digitalinteraction/openmovement-python/):
-
-```bash
-python -m pip install "git+https://github.com/digitalinteraction/openmovement-python.git#egg=openmovement"
-```
+-->
 
 
 ## `cwa_load` - .CWA file loader
