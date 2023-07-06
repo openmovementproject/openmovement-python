@@ -447,6 +447,7 @@ class CwaData(BaseData):
 
 
     def _parse_data(self):
+        report = {}
         if self.verbose: print('Interpreting data...', flush=True)
         self.data_buffer = self.full_buffer[self.data_offset:]
 
@@ -493,7 +494,12 @@ class CwaData(BaseData):
         # Valid sectors: zero checksum, correct header and packet-length, matching initial data format (numAxesBPS and rateCode)
         if self.verbose: print('Determining valid sectors...', flush=True)
         self.df['valid_sector'] = ((self.df.checksum_sum == 0) & (self.df.packet_header == 22593) & (self.df.packet_length == 508) & (self.df.num_axes_bps == self.data_format['numAxesBPS']) & (self.df.rate_code == self.data_format['rateCode']))
-        #print(self.df.valid_sector)
+        report['sector_count'] = self.df.shape[0]
+        report['valid_sector_count'] = self.df.valid_sector.sum()
+        report['invalid_sector_count'] = report['sector_count'] - report['valid_sector_count']
+        if self.verbose: print('Invalid sectors: ' + str(report['invalid_sector_count']) + ' (Valid: '  + str(report['valid_sector_count']) + ' / ' + str(report['sector_count']) + ')', flush=True)
+
+        return report
 
 
     def _parse_times(self):
@@ -571,16 +577,16 @@ class CwaData(BaseData):
             raise Exception('Unhandled data format')
 
         # Which sensors?
-        has_accel = self.include_accel and 'accelAxis' in self.data_format and self.data_format['accelAxis'] >= 0
-        has_gyro = self.include_gyro and 'gyroAxis' in self.data_format and self.data_format['gyroAxis'] >= 0
-        has_mag = self.include_mag and 'magAxis' in self.data_format and self.data_format['magAxis'] >= 0
+        self.has_accel = self.include_accel and 'accelAxis' in self.data_format and self.data_format['accelAxis'] >= 0
+        self.has_gyro = self.include_gyro and 'gyroAxis' in self.data_format and self.data_format['gyroAxis'] >= 0
+        self.has_mag = self.include_mag and 'magAxis' in self.data_format and self.data_format['magAxis'] >= 0
         
         # Calculate dimensions
         axis_count = 0  # time
         if self.include_time: axis_count += 1
-        if has_accel: axis_count += 3
-        if has_gyro: axis_count += 3
-        if has_mag: axis_count += 3
+        if self.has_accel: axis_count += 3
+        if self.has_gyro: axis_count += 3
+        if self.has_mag: axis_count += 3
         if self.include_light: axis_count += 1
         if self.include_temperature: axis_count += 1
         self.labels = []
@@ -615,19 +621,19 @@ class CwaData(BaseData):
             self.labels = self.labels + ['time']
             current_axis += 1
 
-        if has_accel:
+        if self.has_accel:
             if self.verbose: print('Sample data: scaling accel... 1/' + str(self.data_format['accelUnit']), flush=True)
             self.sample_values[:,current_axis:current_axis+3] = self.raw_samples[:, self.data_format['accelAxis']:self.data_format['accelAxis']+3] * (1.0 / self.data_format['accelUnit'])
             self.labels = self.labels + ['accel_x', 'accel_y', 'accel_z']
             current_axis += 3
 
-        if has_gyro:
+        if self.has_gyro:
             if self.verbose: print('Sample data: scaling gyro... 1/' + str(self.data_format['gyroUnit']), flush=True)
             self.sample_values[:,current_axis:current_axis+3] = self.raw_samples[:, self.data_format['gyroAxis']:self.data_format['gyroAxis']+3] * (1.0 / self.data_format['gyroUnit'])
             self.labels = self.labels + ['gyro_x', 'gyro_y', 'gyro_z']
             current_axis += 3
 
-        if has_mag:
+        if self.has_mag:
             if self.verbose: print('Sample data: scaling mag... 1/' + str(self.data_format['magUnit']), flush=True)
             self.sample_values[:,current_axis:current_axis+3] = self.raw_samples[:, self.data_format['magAxis']:self.data_format['magAxis']+3] * (1.0 / self.data_format['magUnit'])
             self.labels = self.labels + ['mag_x', 'mag_y', 'mag_z']
@@ -699,7 +705,7 @@ class CwaData(BaseData):
         if self.all_data_read:
             return
         self.all_data_read = True
-        self._parse_data()
+        self.report = self._parse_data()
         self._find_segments()
         self._interpret_samples()
 
