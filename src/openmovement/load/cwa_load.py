@@ -298,9 +298,6 @@ def _parse_cwa_data(block, extractData=False):
             
             data['timestampTime'] = _timestamp_string(data['timestamp'])
 
-            # Estimate the time of the first/after-last sample (if at the configured rate)
-            data['estimatedFirstSampleTime'] = timestamp - (timestampOffset / frequency)
-            
             # Maximum samples per sector
             channels = (numAxesBPS >> 4) & 0x0f
             bytesPerAxis = numAxesBPS & 0x0f
@@ -315,6 +312,10 @@ def _parse_cwa_data(block, extractData=False):
             data['bytesPerSample'] = bytesPerSample
             data['samplesPerSector'] = samplesPerSector
 
+            # Estimate the time of the first/after-last sample (if at the configured rate)
+            data['estimatedFirstSampleTime'] = timestamp - (timestampOffset / frequency)
+            data['estimatedAfterLastSampleTime'] = data['estimatedFirstSampleTime'] + (samplesPerSector / frequency)
+            
             # Axes
             accelAxis = -1
             gyroAxis = -1
@@ -530,24 +531,33 @@ class CwaData(BaseData):
 
 
     def _find_segments(self):
-        # TODO: Segments not yet used.  Possibly return as raw sample ranges: scale by self.data_format.data['samplesPerSector']  -- Masked array/numpy.compress()/numpy.take()?
-        pass
+        if self.verbose: print('Finding segments...', flush=True)
+        self.all_segments = []
 
-        # if self.verbose: print('Finding segments...', flush=True)
-        # self.all_segments = []
-
-        # # Last sector in a segment where the session_id/config changes, or the sequence does not follow on, or the next sector is invalid.
-        # ends = np.where((self.df.valid_sector.diff(periods=-1) != 0) | (self.df.session_id.diff(periods=-1) != 0) | (self.df.num_axes_bps.diff(periods=-1)  != 0) | ((-self.df.sequence_id).diff(periods=-1) != 1))[0]
+        # Last sector in a segment where the session_id/config changes, or the sequence does not follow on, or the next sector is invalid.
+        ends = np.where((self.df.valid_sector.diff(periods=-1) != 0) | (self.df.session_id.diff(periods=-1) != 0) | (self.df.num_axes_bps.diff(periods=-1)  != 0) | ((-self.df.sequence_id).diff(periods=-1) != 1))[0]
         
-        # segment_start = 0
-        # for end in ends:
-        #     segment = slice(segment_start, end + 1)
-        #     self.all_segments.append(segment)
-        #     segment_start = end + 1
+        segment_start = 0
+        for end in ends:
+            segment = {}
 
-        # if self.verbose: print('...segments located', flush=True)
-        # if self.verbose: print(str(self.all_segments), flush=True)
-        # #print(str(self.df.iloc[self.all_segments[0]]))
+            segment['slice'] = slice(segment_start, end + 1)
+
+            ofs = self.data_offset + segment_start * SECTOR_SIZE
+            segment['start'] = _parse_cwa_data(self.full_buffer[ofs:ofs + SECTOR_SIZE])
+
+            ofs = self.data_offset + end * SECTOR_SIZE
+            segment['end'] = _parse_cwa_data(self.full_buffer[ofs:ofs + SECTOR_SIZE])
+
+            self.all_segments.append(segment)
+            segment_start = end + 1
+
+        if self.verbose: print('...segments located', flush=True)
+        if self.verbose: print(str(self.all_segments), flush=True)
+        #if self.verbose: print(str(self.df.iloc[self.all_segments[0]]))
+
+        # TODO: Segments not yet used.  Possibly return as raw sample ranges: scale by self.data_format.data['samplesPerSector']  -- Masked array/numpy.compress()/numpy.take()?
+        return self.all_segments
 
 
     def _interpret_samples(self):
