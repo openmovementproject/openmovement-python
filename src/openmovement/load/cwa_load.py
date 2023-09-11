@@ -532,7 +532,7 @@ class CwaData(BaseData):
 
     def _find_segments(self):
         if self.verbose: print('Finding segments...', flush=True)
-        self.all_segments = []
+        all_segments = []
 
         # Last sector in a segment where the session_id/config changes, or the sequence does not follow on, or the next sector is invalid.
         ends = np.where((self.df.valid_sector.diff(periods=-1) != 0) | (self.df.session_id.diff(periods=-1) != 0) | (self.df.num_axes_bps.diff(periods=-1)  != 0) | ((-self.df.sequence_id).diff(periods=-1) != 1))[0]
@@ -549,15 +549,15 @@ class CwaData(BaseData):
             ofs = self.data_offset + end * SECTOR_SIZE
             segment['end'] = _parse_cwa_data(self.full_buffer[ofs:ofs + SECTOR_SIZE])
 
-            self.all_segments.append(segment)
+            all_segments.append(segment)
             segment_start = end + 1
 
         if self.verbose: print('...segments located', flush=True)
-        if self.verbose: print(str(self.all_segments), flush=True)
-        #if self.verbose: print(str(self.df.iloc[self.all_segments[0]]))
+        if self.verbose: print(str(all_segments), flush=True)
+        #if self.verbose: print(str(self.df.iloc[all_segments[0]]))
 
         # TODO: Segments not yet used.  Possibly return as raw sample ranges: scale by self.data_format.data['samplesPerSector']  -- Masked array/numpy.compress()/numpy.take()?
-        return self.all_segments
+        return all_segments
 
 
     def _interpret_samples(self):
@@ -716,7 +716,7 @@ class CwaData(BaseData):
             return
         self.all_data_read = True
         self.report = self._parse_data()
-        self._find_segments()
+        self.all_segments = self._find_segments()
         self._interpret_samples()
 
         elapsed_time = time.time() - start_time
