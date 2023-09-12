@@ -537,18 +537,34 @@ class CwaData(BaseData):
         # Last sector in a segment where the session_id/config changes, or the sequence does not follow on, or the next sector is invalid.
         ends = np.where((self.df.valid_sector.diff(periods=-1) != 0) | (self.df.session_id.diff(periods=-1) != 0) | (self.df.num_axes_bps.diff(periods=-1)  != 0) | ((-self.df.sequence_id).diff(periods=-1) != 1))[0]
         
+        previous_fixed_samples = 0
+        previous_true_samples = 0
+
         segment_start = 0
         for end in ends:
             segment = {}
 
+            # Slice (sector index)
             segment['slice'] = slice(segment_start, end + 1)
 
+            # First sector of slice
             ofs = self.data_offset + segment_start * SECTOR_SIZE
             segment['start'] = _parse_cwa_data(self.full_buffer[ofs:ofs + SECTOR_SIZE])
 
+            # Last sector of slice
             ofs = self.data_offset + end * SECTOR_SIZE
             segment['end'] = _parse_cwa_data(self.full_buffer[ofs:ofs + SECTOR_SIZE])
 
+            # Current implementation assumes format is fixed for all segments
+            segment['index_fixed'] = previous_fixed_samples
+            previous_fixed_samples += (end + 1 - segment_start) * self.data_format['samplesPerSector']
+            segment['count_fixed'] = previous_fixed_samples - segment['index_fixed']
+
+            # Future implementation could allow per-segment format differences
+            segment['index_true'] = previous_true_samples
+            previous_true_samples += (end - segment_start) * segment['start']['samplesPerSector'] + segment['end']['sampleCount']
+            segment['count_true'] = previous_true_samples - segment['index_true']
+ 
             all_segments.append(segment)
             segment_start = end + 1
 
