@@ -307,19 +307,6 @@ class WavData(BaseData):
     WAV file loader
     """
 
-    def _read_data(self):
-        if self.verbose: print('Opening WAV file...', flush=True)
-        self.fh = open(self.filename, 'rb')
-        try:
-            import mmap
-            self.full_buffer = mmap.mmap(self.fh.fileno(), 0, access=mmap.ACCESS_READ)
-            if self.verbose: print('...mapped ' + str(len(self.full_buffer) / 1024 / 1024) + 'MB', flush=True)
-        except Exception as e:
-            print('WARNING: Problem using mmap (' + str(e) +') - falling back to reading whole file...', flush=True)
-            self.full_buffer = self.fh.read()
-            if self.verbose: print('...read ' + str(len(self.full_buffer) / 1024 / 1024) + 'MB', flush=True)
-
-
     def _parse_header(self):
         if self.verbose: print('Parsing WAV info...', flush=True)
         self.wav_info = _parse_wav_info(self.full_buffer)
@@ -404,7 +391,6 @@ class WavData(BaseData):
         self.include_mag = include_mag
 
         self.fh = None
-        self.full_buffer = None
 
         self.all_data_read = False
         self._read_data()

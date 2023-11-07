@@ -13,9 +13,36 @@ class BaseData(ABC):
         :param filename: The path to the source file.
         :param verbose: Output more detailed information.
         """
-        self.filename = filename
         self.verbose = verbose
-        pass
+        # check if filename is an array of bytes or a string
+        self.full_buffer = None
+        self.filename = None
+        if isinstance(filename, bytes):
+            self.full_buffer = filename
+            if self.verbose: print('File data provided: ' + str(len(self.full_buffer)), flush=True)
+        else:
+            self.filename = filename
+            if self.verbose: print('Filename provided, will load data: ' + self.filename, flush=True)
+
+    def _read_data(self):
+        if self.full_buffer is not None:
+            if self.verbose: print('File data already read...', flush=True)
+            return
+
+        if (self.filename is None):
+            raise Exception('No filename/data provided?')
+            return
+
+        if self.verbose: print('Opening file...', flush=True)
+        self.fh = open(self.filename, 'rb')
+        try:
+            import mmap
+            self.full_buffer = mmap.mmap(self.fh.fileno(), 0, access=mmap.ACCESS_READ)
+            if self.verbose: print('...mapped ' + str(len(self.full_buffer) / 1024 / 1024) + 'MB', flush=True)
+        except Exception as e:
+            print('WARNING: Problem using mmap (' + str(e) +') - falling back to reading whole file...', flush=True)
+            self.full_buffer = self.fh.read()
+            if self.verbose: print('...read ' + str(len(self.full_buffer) / 1024 / 1024) + 'MB', flush=True)
 
 
     # Nothing to do at start of 'with'
