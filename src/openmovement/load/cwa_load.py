@@ -371,13 +371,13 @@ def _parse_cwa_data(block, extractData=False):
                     if bytesPerAxis == 0 and channels == 3:
                         for i in range(data['sampleCount']):
                             ofs = 30 + i * 4
-                            #value =  block[i] | (block[i + 1] << 8) | (block[i + 2] << 8) | (block[i + 3] << 24)
+                            #value =  block[i] | (block[i + 1] << 8) | (block[i + 2] << 16) | (block[i + 3] << 24)
                             value = unpack('<I', block[ofs:ofs + 4])[0]
                             axes = _dword_unpack(value)
                             accelSamples[i][0] = axes[0] / accelUnit
                             accelSamples[i][1] = axes[1] / accelUnit
                             accelSamples[i][2] = axes[2] / accelUnit
-                    elif bytesPerSample == 2:
+                    elif bytesPerAxis == 2:
                         for i in range(data['sampleCount']):
                             ofs = 30 + (i * 2 * channels) + 2 * accelAxis
                             accelSamples[i][0] = (block[ofs + 0] | (block[ofs + 1] << 8)) / accelUnit
@@ -385,7 +385,7 @@ def _parse_cwa_data(block, extractData=False):
                             accelSamples[i][2] = (block[ofs + 4] | (block[ofs + 5] << 8)) / accelUnit
                     data['samplesAccel'] = accelSamples
                 
-                if gyroAxis >= 0 and bytesPerSample == 2:
+                if gyroAxis >= 0 and bytesPerAxis == 2:
                     gyroSamples = [[0, 0, 0]] * data['sampleCount']
                     for i in range(data['sampleCount']):
                         ofs = 30 + (i * 2 * channels) + 2 * gyroAxis
@@ -394,7 +394,7 @@ def _parse_cwa_data(block, extractData=False):
                         gyroSamples[i][2] = (block[ofs + 4] | (block[ofs + 5] << 8)) / gyroUnit
                     data['samplesGyro'] = gyroSamples
                 
-                if magAxis >= 0 and bytesPerSample == 2:
+                if magAxis >= 0 and bytesPerAxis == 2:
                     magSamples = [[0, 0, 0]] * data['sampleCount']
                     for i in range(data['sampleCount']):
                         ofs = 30 + (i * 2 * channels) + 2 * magAxis
